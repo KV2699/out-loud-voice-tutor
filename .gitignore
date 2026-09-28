@@ -1,0 +1,19 @@
+# Dependencies — Vercel installs these itself from package.json
+node_modules/
+
+# SECRETS. Every variant, anywhere in the tree.
+#
+# This used to say only "server/.env", and a stray "server/.env.txt" left over
+# from a mistyped terminal command sat beside it holding the same live API key.
+# It would have been published. One missed suffix is all it takes, so the rule
+# is now the whole family rather than one filename.
+.env
+.env.*
+*.env
+!.env.example
+
+# Vercel's local link
+.vercel
+
+# macOS noise
+.DS_Store

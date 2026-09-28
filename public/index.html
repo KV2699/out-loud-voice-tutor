@@ -1,0 +1,3330 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inclusive Practice at Work — Voice Tutor</title>
+<style>
+  /* Series light theme, module 1. Values lifted from
+     inclusive-practice/src/tokens.css so the tutor and the courseware it drives
+     are visibly one product — white page, near-black ink, blue as the action.
+     --blue-500 is the lightest blue in the set that passes for text (6.3:1). */
+  :root{
+    --page:#ffffff;
+    --well:#f6f5f3;
+    --ink:#141414;
+    --ink-dim:#3d3d3d;
+    --ink-faint:#5c5c5c;
+    --blue-600:#1e40af;
+    --blue-500:#1d4ed8;
+    --blue-400:#3b82f6;
+    --blue-100:#dbeafe;
+    --blue-50:#eff6ff;
+    --good:#047857;
+    --bad:#be123c;
+    --line:rgba(20,20,20,.13);
+    --rail:380px;
+  }
+  *,*::before,*::after{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;background:var(--page);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    display:grid;grid-template-columns:1fr var(--rail);
+    overflow:hidden;
+  }
+
+  /* ---- the courseware ------------------------------------------------- */
+  .stage{position:relative;min-width:0;background:var(--well);display:flex;flex-direction:column;}
+  .stage iframe{flex:1;width:100%;border:0;display:block;}
+  .stage__tag{
+    position:absolute;top:14px;left:16px;z-index:5;
+    padding:6px 12px;border-radius:999px;
+    background:rgba(255,255,255,.92);border:1px solid var(--line);
+    font-size:.72rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--ink-faint);pointer-events:none;
+    transition:color .25s ease, border-color .25s ease;
+  }
+  .stage__tag.is-driven{color:var(--blue-600);border-color:var(--blue-400);}
+
+  /* ---- the tutor rail -------------------------------------------------- */
+  .rail{
+    border-left:1px solid var(--line);background:var(--page);
+    display:flex;flex-direction:column;min-height:0;padding:22px 20px 20px;
+  }
+  h1{font-size:1.08rem;font-weight:800;letter-spacing:-.02em;margin:0;text-wrap:balance;}
+  .sub{margin:5px 0 0;color:var(--ink-faint);font-size:.78rem;letter-spacing:.05em;}
+
+  .control{display:flex;flex-direction:column;align-items:center;gap:12px;padding:22px 0 18px;}
+  .mic{
+    width:132px;height:132px;border-radius:50%;border:0;cursor:pointer;
+    background:var(--blue-500);color:#fff;font-size:.95rem;font-weight:700;
+    box-shadow:0 12px 28px rgba(29,78,216,.26);
+    transition:transform .2s ease, box-shadow .2s ease, background .2s ease;
+  }
+  .mic:hover:not(:disabled){transform:translateY(-2px);background:var(--blue-600);}
+  .mic:focus-visible{outline:3px solid var(--blue-400);outline-offset:4px;}
+  .mic:disabled{opacity:.5;cursor:default;}
+  .mic.is-live{animation:pulse 2s ease-in-out infinite;}
+  @keyframes pulse{
+    0%,100%{box-shadow:0 0 0 0 rgba(29,78,216,.34), 0 12px 28px rgba(29,78,216,.2);}
+    50%    {box-shadow:0 0 0 22px rgba(29,78,216,0), 0 12px 28px rgba(29,78,216,.2);}
+  }
+  @media (prefers-reduced-motion: reduce){ .mic.is-live{animation:none;} }
+
+  .status{display:flex;align-items:center;gap:8px;color:var(--ink-faint);
+          font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;font-weight:700;}
+  .dot{width:8px;height:8px;border-radius:50%;background:#9ca3af;}
+  .dot.connecting{background:#a16207;}
+  .dot.connected{background:var(--good);}
+  .dot.error{background:var(--bad);}
+
+  .stop{
+    padding:10px 20px;border-radius:999px;min-height:44px;
+    background:transparent;color:var(--ink-dim);
+    border:1px solid var(--line);cursor:pointer;font-size:.84rem;font-weight:600;
+  }
+  .stop:hover:not(:disabled){color:var(--ink);border-color:var(--blue-400);}
+  .stop:focus-visible{outline:3px solid var(--blue-400);outline-offset:3px;}
+  .stop:disabled{opacity:.4;cursor:default;}
+
+  .log{
+    flex:1;min-height:0;overflow-y:auto;
+    border-top:1px solid var(--line);padding-top:16px;
+    display:flex;flex-direction:column;gap:13px;
+  }
+  .line{line-height:1.5;font-size:.92rem;}
+  .line b{display:block;font-size:.63rem;letter-spacing:.16em;text-transform:uppercase;
+          margin-bottom:3px;font-weight:700;}
+  .line.you   {color:var(--ink);}
+  .line.you  b{color:var(--ink-faint);}
+  .line.tutor {color:var(--blue-500);}
+  .line.tutor b{color:var(--blue-600);}
+  .line.move  {color:var(--ink-faint);font-size:.76rem;font-style:italic;}
+  .line.partial{opacity:.5;}
+  .empty{color:var(--ink-faint);font-size:.88rem;}
+  .err{margin-top:12px;padding:12px 14px;border-radius:8px;
+       background:#fff1f2;border:1px solid rgba(190,18,60,.35);
+       color:#9f1239;font-size:.84rem;line-height:1.5;}
+  [hidden]{display:none !important;}
+
+  /* ---- the front door -------------------------------------------------
+     There used to be two blue things to press at once — the deck's own
+     "Begin" behind the glass, and "Start Learning" in the rail — and no way
+     to tell which one started the thing you wanted. This covers the whole
+     page so there is exactly ONE control on screen, and the module behind it
+     cannot be reached until it is pressed.
+
+     It also has to exist for a reason that is not design: browsers refuse
+     audio and microphone access until the page has been clicked. A tutor
+     that greets you on load is not possible, so the first sound the learner
+     hears is the reward for pressing this. -------------------------------- */
+  .door{
+    position:fixed;inset:0;z-index:50;background:var(--page);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:22px;padding:32px;text-align:center;
+    transition:opacity .5s ease, visibility .5s ease;
+  }
+  .door.is-open{opacity:0;visibility:hidden;pointer-events:none;}
+  .door__eyebrow{margin:0;color:var(--ink-faint);font-size:.72rem;font-weight:700;
+                 letter-spacing:.18em;text-transform:uppercase;}
+  .door__title{margin:0;font-size:clamp(1.6rem,3.4vw,2.5rem);font-weight:800;
+               letter-spacing:-.025em;max-width:16ch;text-wrap:balance;line-height:1.1;}
+  /* ---- the orb ---------------------------------------------------------
+     She liked the floating glass orb from another prototype. That one is
+     `backdrop-filter: blur()` over a black starfield — a LENS, with a fill of
+     rgba(255,255,255,0.01) and no colour of its own. On a white page it is a
+     white blur on white: nothing. It also needed React, Framer Motion, Babel
+     and Tailwind to exist.
+
+     So this generates its own light instead of borrowing it. Same read —
+     spherical, wet, floating, alive — built from four stacked layers and
+     nothing else:
+       body      a sphere lit from the top-left, deepening to the brand blue
+       film      two slow iridescent sweeps, the soap-bubble shimmer
+       specular  one hard highlight, which is what makes it read as WET
+       shadow    a soft contact shadow so it floats rather than sits
+
+     Every knob is a custom property on .door__go — change --orb-hue alone and
+     the whole thing retunes, highlights and shadow included.
+     -------------------------------------------------------------------- */
+  .door__go{
+    --orb-size:210px;
+    --orb-hue:226;                    /* brand blue; 265 violet, 190 teal */
+    --orb-sat:85%;
+    --orb-float:7s;
+    --orb-shimmer:14s;
+
+    position:relative;width:var(--orb-size);height:var(--orb-size);
+    border:0;border-radius:50%;padding:0;cursor:pointer;
+    background:
+      /* specular highlight — small, sharp, offset: the wet cue */
+      radial-gradient(circle at 34% 26%,
+        rgba(255,255,255,.95) 0%, rgba(255,255,255,.55) 4%,
+        rgba(255,255,255,0) 13%),
+      /* rim bounce along the lower edge, as if light wraps the sphere */
+      radial-gradient(circle at 70% 82%,
+        hsla(var(--orb-hue) 100% 82% / .5) 0%, transparent 42%),
+      /* the body: lit top-left, saturating into shadow bottom-right */
+      radial-gradient(circle at 36% 30%,
+        hsl(var(--orb-hue) var(--orb-sat) 72%) 0%,
+        hsl(var(--orb-hue) var(--orb-sat) 55%) 38%,
+        hsl(calc(var(--orb-hue) + 12) var(--orb-sat) 40%) 72%,
+        hsl(calc(var(--orb-hue) + 20) var(--orb-sat) 32%) 100%);
+    box-shadow:
+      0 26px 46px -18px hsla(var(--orb-hue) 70% 40% / .55),   /* contact shadow */
+      0 6px 18px -8px  hsla(var(--orb-hue) 70% 40% / .35),
+      inset 0 -14px 26px -10px hsla(var(--orb-hue) 90% 22% / .5),
+      inset 0 10px 22px -8px rgba(255,255,255,.4);
+    animation:float var(--orb-float) ease-in-out infinite;
+    transition:transform .45s cubic-bezier(.2,.8,.25,1);
+    isolation:isolate;
+    /* The shimmer layer scales past 1 as it turns, and without this it leaks
+       out past the edge as a pink haze — the silhouette goes soft and it
+       stops reading as a sphere. Clips children only; the contact shadow
+       below is a box-shadow and survives. */
+    overflow:hidden;
+  }
+  /* the iridescent film — two sweeps at different speeds, so the shimmer
+     never repeats on an obvious beat */
+  .door__go::before{
+    content:"";position:absolute;inset:0;border-radius:50%;
+    background:
+      radial-gradient(ellipse 70% 55% at 22% 78%, hsla(310 90% 70% / .5), transparent 62%),
+      radial-gradient(ellipse 60% 50% at 80% 30%, hsla(175 95% 65% / .45), transparent 60%);
+    mix-blend-mode:screen;opacity:.75;
+    animation:shimmer var(--orb-shimmer) ease-in-out infinite;
+    pointer-events:none;
+  }
+  /* the thin bright meniscus around the top edge */
+  .door__go::after{
+    content:"";position:absolute;inset:0;border-radius:50%;
+    background:linear-gradient(170deg, rgba(255,255,255,.7) 0%, rgba(255,255,255,0) 32%);
+    -webkit-mask:radial-gradient(circle, transparent 66%, #000 70%);
+            mask:radial-gradient(circle, transparent 66%, #000 70%);
+    pointer-events:none;
+  }
+  .door__go__label{
+    position:relative;z-index:2;
+    color:#fff;font-size:1.12rem;font-weight:700;letter-spacing:.01em;
+    text-shadow:0 1px 10px hsla(var(--orb-hue) 80% 25% / .6);
+  }
+  .door__go:hover{transform:scale(1.045) translateY(-4px);}
+  .door__go:active{transform:scale(.99);}
+  .door__go:focus-visible{outline:3px solid hsl(var(--orb-hue) 80% 45%);outline-offset:8px;}
+  .door__go:disabled{cursor:default;filter:saturate(.45) brightness(1.06);animation:none;}
+
+  @keyframes float{
+    0%,100%{transform:translateY(0)      rotate(0deg);}
+    50%    {transform:translateY(-13px)  rotate(-1.2deg);}
+  }
+  @keyframes shimmer{
+    0%,100%{transform:rotate(0deg)   scale(1);   opacity:.75;}
+    33%    {transform:rotate(130deg) scale(1.12); opacity:.95;}
+    66%    {transform:rotate(240deg) scale(.95);  opacity:.62;}
+  }
+  @media (prefers-reduced-motion: reduce){
+    .door__go, .door__go::before{animation:none;}
+    .door__go:hover{transform:none;}
+  }
+
+  .door__note{margin:0;color:var(--ink-faint);font-size:.9rem;max-width:34ch;line-height:1.55;}
+  /* The repeating reminder she wanted, as light rather than sound — the one
+     channel that is open before the first click. */
+  .door__again{margin:0;color:var(--blue-600);font-size:.9rem;font-weight:600;
+               opacity:0;transition:opacity .6s ease;}
+  .door__again.is-on{opacity:1;}
+  @media (prefers-reduced-motion: reduce){ .door__go{animation:none;} }
+
+  /* ---- what to press next ---------------------------------------------
+     The tutor can say it, but only on a turn. When the learner is silent the
+     screen is the only voice left, so the thing they need to press says so
+     itself rather than waiting to be asked. */
+  .cue{
+    margin-top:14px;padding:11px 13px;border-radius:10px;
+    background:var(--blue-50);border:1px solid var(--blue-100);
+    color:var(--blue-600);font-size:.86rem;font-weight:600;line-height:1.45;
+  }
+  /* Three guesses at why the voice says "dot" have all been guesses. This
+     copies the EXACT characters the speech engine was handed, escapes and
+     all, so the next report is evidence rather than another theory. */
+  .dbg{
+    margin-top:8px;padding:6px 10px;border-radius:6px;width:100%;
+    background:transparent;border:1px dashed var(--line);color:var(--ink-faint);
+    font-size:.72rem;font-family:inherit;cursor:pointer;
+  }
+  .dbg:hover{color:var(--ink-dim);border-color:var(--ink-faint);}
+  .dbg.ok{color:var(--good);border-color:var(--good);}
+
+  .cue.is-soft{background:var(--well);border-color:var(--line);color:var(--ink-dim);font-weight:500;}
+
+  /* ---- the journey log -------------------------------------------------
+     The record of what actually happened, on screen rather than inferred.
+     It exists because the tutor and the deck came apart once and nothing on
+     the page would have shown it. */
+  /* ---- the quiet route ------------------------------------------------
+     Not everyone can talk. An open-plan office, a shared desk, a sore throat,
+     or simply not wanting to say "worth flagging" out loud where colleagues
+     can hear — the course cannot only work for people with a room to
+     themselves. These do exactly what the spoken words do, through the same
+     functions, so the two routes cannot drift apart. */
+  .quiet{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);}
+  .quiet__h{
+    font-size:.63rem;letter-spacing:.16em;text-transform:uppercase;
+    font-weight:700;color:var(--ink-faint);display:block;margin-bottom:8px;
+  }
+  .quiet__row{display:flex;flex-wrap:wrap;gap:6px;}
+  .quiet__btn{
+    border:1px solid var(--line);background:var(--page);color:var(--ink-dim);
+    border-radius:999px;padding:7px 14px;min-height:36px;cursor:pointer;
+    font-size:.82rem;font-weight:600;font-family:inherit;
+  }
+  .quiet__btn:hover{border-color:var(--blue-400);color:var(--blue-600);}
+  .quiet__btn:focus-visible{outline:2px solid var(--blue-400);outline-offset:2px;}
+  /* A quiet button stands in for a control on screen, so it should LOOK like
+     the control it stands in for. A row of identical grey pills gave no clue
+     which one was the way forward and which was the way back. */
+  .quiet__btn.is-go{
+    background:var(--blue-500);border-color:var(--blue-500);color:#fff;
+  }
+  .quiet__btn.is-go:hover{background:var(--blue-600);border-color:var(--blue-600);color:#fff;}
+  .quiet__btn.is-yes{border-color:var(--blue-400);color:var(--blue-600);}
+  .quiet__btn.is-no{border-color:var(--ink-faint);color:var(--ink-dim);}
+  .quiet__note{margin:8px 0 0;font-size:.72rem;color:var(--ink-faint);line-height:1.45;}
+
+  .journey{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);}
+  .journey__h{
+    font-size:.63rem;letter-spacing:.16em;text-transform:uppercase;
+    font-weight:700;color:var(--ink-faint);display:block;margin-bottom:8px;
+  }
+  .journey__list{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:4px;}
+  .journey__list li{
+    font-size:.68rem;font-weight:600;font-variant-numeric:tabular-nums;
+    min-width:22px;padding:3px 6px;border-radius:3px;text-align:center;
+    background:var(--well);color:var(--ink-faint);border:1px solid transparent;
+  }
+  .journey__list li.is-now{background:var(--blue-500);color:#fff;}
+  .journey__list li.is-done{background:var(--blue-50);color:var(--blue-600);border-color:var(--blue-100);}
+  .journey__list li.is-todo{background:transparent;border-color:var(--line);color:var(--ink-faint);}
+  /* A screen heard out keeps a mark, because it is the one that stays
+     unlocked — going back to it later costs nothing. */
+  .journey__list li.is-heard{box-shadow:inset 0 -2px 0 var(--good);}
+  .journey__score{
+    width:100%;margin:7px 0 0;font-size:.74rem;color:var(--ink-dim);line-height:1.5;
+  }
+  .journey__score b{color:var(--good);font-weight:700;}
+  .journey__score i{color:var(--ink-faint);font-style:normal;font-size:.92em;}
+
+  @media (max-width:900px){
+    body{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) auto;overflow:auto;}
+    .rail{border-left:0;border-top:1px solid var(--line);}
+    .log{max-height:220px;}
+  }
+</style>
+</head>
+<body>
+
+  <script>
+    /* Runs before the iframe below is fetched. The deck reads this preference
+       on boot, so setting it here means it never makes a sound on this page —
+       the tutor is the voice. Parent and iframe share an origin, so this is
+       the same localStorage the deck will read. Her standalone deck is served
+       from another port, and localStorage is per-origin, so it is untouched. */
+    try {
+      localStorage.setItem('ipw:voice', '0');
+      /* Voice is the input device now. The deck reads this on boot and stops
+         binding drag, drops the drag instructions, and exposes __deck.voice —
+         the named surface this page answers through. Unset, the module she
+         ships standalone behaves exactly as it always has. */
+      localStorage.setItem('ipw:voiceinput', '1');
+    } catch (e) {}
+  </script>
+
+  <div class="door" id="door">
+    <p class="door__eyebrow">Inclusive Practice at Work</p>
+    <h2 class="door__title">A course you take by talking</h2>
+    <button class="door__go" id="door-go" type="button">
+      <span class="door__go__label" id="door-go-label">Start</span>
+    </button>
+    <p class="door__note">Your tutor speaks, you answer out loud, and the
+       module follows. You'll be asked for your microphone next.</p>
+    <p class="door__again" id="door-again">Press the blue circle to begin.</p>
+  </div>
+
+  <div class="stage">
+    <span class="stage__tag" id="tag">Module</span>
+    <iframe id="deck" src="deck/dei-clone.html" title="Inclusive Practice at Work"
+            allow="autoplay"></iframe>
+  </div>
+
+  <aside class="rail">
+    <h1>Inclusive Practice at Work</h1>
+    <p class="sub">Voice Tutor · Powered by AssemblyAI</p>
+
+    <div class="control">
+      <button class="mic" id="mic" type="button" hidden>Start Learning</button>
+      <div class="status"><span class="dot" id="dot"></span><span id="status">Disconnected</span></div>
+      <button class="stop" id="stop" type="button" disabled>End session</button>
+    </div>
+
+    <p class="cue" id="cue" hidden></p>
+    <button class="dbg" id="dbg" type="button" hidden>Copy the session log</button>
+    <div class="quiet" id="quiet" hidden>
+      <span class="quiet__h">Prefer to click through?</span>
+      <div class="quiet__row" id="quiet-row"></div>
+      <p class="quiet__note">These say the word for you, so your guide hears it and
+        carries on exactly as if you had spoken.</p>
+    </div>
+
+    <div class="journey" id="journey" hidden>
+      <span class="journey__h">Where you are</span>
+      <ol class="journey__list" id="journey-list"></ol>
+    </div>
+    <div class="err" id="err" hidden></div>
+    <div class="log" id="log"><p class="empty">The conversation will appear here, and the module will follow it.</p></div>
+  </aside>
+
+<script>
+'use strict';
+
+/* =========================================================================
+   VOICE TUTOR + COURSEWARE
+
+   One AssemblyAI WebSocket hears the learner, decides what to say, and speaks
+   back. The new part is that it also DRIVES the module: a `show_section` tool
+   lets the agent turn the page, so the deck follows the conversation instead
+   of the learner clicking through it.
+
+   Two routes to the same navigation, deliberately:
+     1. The tool call — the agent deciding, which is the real integration.
+     2. A phrase match on what the agent just said — a net under the demo, in
+        case a tool call does not fire live. Both funnel through showSection(),
+        because two routes to one outcome drift apart otherwise.
+   ========================================================================= */
+
+const WS_URL = 'wss://agents.assemblyai.com/v1/ws';
+const RATE   = 24000;
+
+/* The deck's own scene numbers, from inclusive-practice/src/content.js. */
+const SECTIONS = {
+  welcome:         { scene: 1,  label: 'Welcome' },
+  objectives:      { scene: 2,  label: "What you'll take away" },
+  route:           { scene: 3,  label: 'Your route through' },
+  part1:           { scene: 4,  label: 'Part 1 · Three words' },
+  part1_activity:  { scene: 6,  label: 'Part 1 · Sort the situations' },
+  part2:           { scene: 7,  label: 'Part 2 · Where it shows up' },
+  part2_activity:  { scene: 9,  label: 'Part 2 · Walk the rules' },
+  part3:           { scene: 10, label: 'Part 3 · Three moves' },
+  part3_quiz:      { scene: 12, label: 'Part 3 · Knowledge check' },
+  summary:         { scene: 13, label: 'How you did' },
+  certificate:     { scene: 15, label: 'Your certificate' }
+};
+
+/* The net. Checked against what the agent says, in order — first hit wins. */
+const PHRASES = [
+  [/\bsort the situations|six situations\b/i, 'part1_activity'],
+  [/\bwalk the rules|six statements|true or false\b/i, 'part2_activity'],
+  [/\bknowledge check|three questions\b/i, 'part3_quiz'],
+  [/\bpart (one|1)\b/i, 'part1'],
+  [/\bpart (two|2)\b/i, 'part2'],
+  [/\bpart (three|3)\b/i, 'part3'],
+  [/\broute through|three parts\b/i, 'route'],
+  [/\btake away|objectives\b/i, 'objectives'],
+  [/\bsummar|how you did|well done covering\b/i, 'summary']
+];
+
+/* ------------------------------------------------------------------------
+   THE PROMPT GETS THE SAME GATE AS THE ANSWERS
+
+   Every tool RESULT was already stripped to plain ASCII, because the agent
+   voices the punctuation it is handed and an em-dash came out of the speakers
+   as a word. What was never stripped was the 16,000-character instruction it
+   reads before it says anything — and that held forty-nine em-dashes. An
+   agent mirrors the punctuation style of its own prompt, so the marks were
+   being reintroduced in her own sentences however clean the results were.
+
+   Same translation as forSpeech(): marks that carry meaning become words or
+   sentence breaks, everything else outside plain ASCII goes. Applied at send
+   time rather than in the source text, so a later edit cannot quietly put one
+   back.
+   ---------------------------------------------------------------------- */
+const plainAscii = t => String(t)
+  .replace(/\s*[\u2013\u2014]\s*/g, '. ')
+  .replace(/\s*[\u2192\u2794\u27a1]\s*/g, ' then ')
+  .replace(/[\u2018\u2019\u201b]/g, "'")
+  .replace(/[\u201c\u201d\u201f]/g, '"')
+  .replace(/\u2026/g, '.')
+  .replace(/[\u00b7\u2022\u2023\u25aa]/g, ' ')
+  .replace(/[^\x20-\x7e\n\t]/g, ' ')
+  /* NO sentence-case pass here, unlike forSpeech(). The prompt names its own
+     tools mid-sentence, and capitalising after a full stop turned
+     "advance. go_to_screen" into "Go_to_screen" — a tool name the agent would
+     then emit and no handler would match. Results get the polish; the
+     instruction text only gets the stripping. */
+  .replace(/[ \t]+/g, ' ');
+
+const SYSTEM_PROMPT = `
+You are the voice tutor for a workplace training module called "Inclusive
+Practice at Work". The module is on screen beside you. The learner does not
+type and does not drag anything: they ANSWER OUT LOUD and you put their
+answer into the screen for them.
+
+=== THE GOLDEN RULE =======================================================
+THE LEARNER DECIDES WHEN THE COURSE MOVES. NOT YOU. NOT EVER.
+
+You have an "advance" tool. It exists so the learner never has to touch the
+keyboard — they SAY "begin", "continue", "next", "submit", "open it", and you
+move the course for them. That is them deciding, out loud.
+
+What is forbidden is moving the course because YOU have finished speaking.
+Never call advance to get on with it. Never call it because a pause felt long.
+Call it only in the turn where the learner has just asked to move on.
+
+=== NEVER BLAME THE SYSTEM =================================================
+You must never tell the learner that there is a technical problem, that the
+system is stuck, stubborn, lagging, looping, or not responding. It is not,
+and saying so ends their trust in the course in one sentence.
+
+When a tool hands you back "STAY HERE" or "BLOCKED", that is the course
+working as designed. It is a pause or a lock, and both are deliberate. Say
+what the tool tells you to say. If you genuinely do not know why something
+has not moved, say nothing about the machinery at all: ask them a question
+about what is on screen and wait. A pause you fill with conversation is
+invisible. A pause you apologise for is a fault.
+
+After you teach a screen, you STOP. You ask if they have questions, you tell
+them what to say when they are ready, and then you wait — however long that
+takes. Silence is not permission.
+===========================================================================
+
+=== YOU ARE THE NARRATOR ==================================================
+The module's own recorded voice is switched off. You are the only voice in
+the room, so if you do not say what is on the screen, nobody does — and the
+learner is sitting in front of a heading no one has mentioned.
+
+So: EVERY time a new screen arrives, you TEACH IT. The advance tool hands you
+that screen's actual words in its result, under "THE SCREEN NOW SAYS". Read
+them to the learner immediately, in the same turn, before anything else.
+
+How to read a screen:
+- In your own words. Never read the slide out verbatim, and never read a list
+  aloud as a list — say what the three things have in common, then the three.
+- Warm and brief. Two to four sentences for most screens. This is speech.
+- Then: ask if anything needs picking at, and say what to say to move on —
+  "say continue when you're ready."
+- Then STOP and wait.
+===========================================================================
+
+NOTHING ON SCREEN IS CLICKABLE. The buttons are read-outs, not controls —
+grey means "not yet", blue means "say the word". There are no back and
+forward arrows any more. YOU are the only way the learner can move, so if
+they ever sound stuck, tell them what to say.
+
+Beside the module is a "Where you are" strip numbering every screen 1 to 15,
+with the current one highlighted. The learner can name a number — "take me
+back to four" — and you call go_to_screen. Mention it once, early, so they
+know it is there.
+
+YOUR TOOLS — you have these powers and no others:
+  advance           move the course on one step, because the learner just
+                    said so. Returns the new screen's words — read them out
+                    straight away.
+  go_to_screen      jump to a numbered screen, 1-15, when they name one.
+  get_progress      read what is on screen right now, and how the learner
+                    is pacing. Call it before you discuss any activity item
+                    and again after every answer.
+  answer_card       part 1 only. side "inclusive" or "flag".
+  answer_statement  part 2 only. verdict "true" or "false".
+  answer_question   part 3 only. letter "a", "b" or "c".
+  show_section      jump to a section — ONLY when the learner asks to.
+  go_back           one screen back — ONLY when the learner asks to.
+  restart_activity  clear the current activity and start it again.
+  retake_part       start part 1, 2 or 3 over — ONLY when the learner asks.
+Never claim to have done anything that is not on that list.
+
+YOU ARE CALLED ADA.
+Introduce yourself once, at the start, and never ask the learner their name.
+Transcription is very good and names are the one thing it is not reliably
+good at, and getting somebody's name wrong is worse than not using it. If
+they offer it unprompted, use it sparingly and only if you are confident you
+heard it. Otherwise "you" is perfectly warm.
+
+HOW THE COURSE STARTS
+The very first screen is the welcome. Your greeting has already introduced
+you and explained how it works, so WAIT. When they say begin, call advance
+and teach the screen it lands on.
+
+Do not rush this. The opening thirty seconds are where they decide whether
+talking to you is going to be worth it.
+
+HOW ANSWERING WORKS
+The learner says their answer and you put it in. Do not ask them to press
+anything to answer — answering is your half.
+  Part 1  they say "Inclusive" or "Worth flagging" -> answer_card
+  Part 2  they say "True" or "False"               -> answer_statement
+  Part 3  they say "A", "B" or "C"                 -> answer_question
+If what they said is not one of those, do not guess. Ask which one they
+mean. Putting in an answer they did not give is the worst thing you can do.
+They can also press the buttons themselves; if get_progress shows an answer
+already went in, just respond to it.
+
+THE ORDER ON SCREEN IS NOT THE ORDER BELOW. The part 1 cards are shuffled.
+ALWAYS call get_progress before you discuss an item, or you will talk about
+a card the learner has not reached — which is the single most confusing
+thing you can do.
+
+THE COURSE CONTENT BELOW IS REFERENCE, NOT A SCRIPT.
+Everything written further down — the three definitions, the six situations,
+the true/false statements, the quiz — is there so you can ANSWER QUESTIONS
+and mark answers. It is NOT a running order and you must never recite it.
+
+Teach only what the current screen actually says, from the words handed to
+you in your last tool result. If you find yourself explaining diversity,
+equity and inclusion and the last result did not contain them, you are
+talking about a screen the learner cannot see. Stop, and describe what is
+actually in front of them.
+
+This is the single worst failure available to you, because the learner is
+looking at one thing while you describe another, and nothing on their screen
+tells them which of you is wrong.
+
+IF YOU GET CONFUSED, DO NOT IMPROVISE. Call get_progress, read what comes
+back, and carry on from there. Never apologise for "a loop" and then start
+teaching from memory — that is how you end up narrating Part One over the
+route screen.
+
+NEVER DESCRIBE A SCREEN YOU HAVE NOT BEEN HANDED.
+Every move you make — advance, go_back, show_section, retake_part — returns
+the new screen's own words in its result, under "THE SCREEN NOW SAYS". Read
+from THAT. Do not narrate a screen from memory and do not assume a move
+landed where you expected: if the learner asks to go back, you find out where
+you are from the result, not from where you think you were.
+
+OFFER THE METHOD, NOT JUST THE PAUSE.
+"Anything you want to pick at?" nine times in a row is wallpaper. Vary what
+you offer, and make the offer worth taking. On any screen with something
+genuinely hard to hold on to — three terms that get confused, six statements,
+three moves — offer the technique instead:
+
+  "There's a tested way to keep those three apart so you don't mix them up
+   later. Want it, or shall we push on?"
+  "Do you want the trick for remembering which of those is which?"
+  "There's a method that makes this stick. Worth two minutes, or move on?"
+
+If they say yes, give them ONE real technique and name it as a technique —
+elaborative interrogation, a keyword peg, retrieval practice, chunking,
+the method of loci. Say briefly why it works, apply it to what is on screen,
+and stop. If they say no, move straight on without a flicker of
+disappointment. Never give the method unasked; an offer they declined is
+still a good offer.
+
+Keep a rough count. Offer a method roughly every other screen, not on every
+one, and plain "anything you want to pick at?" the rest of the time.
+
+AFTER EVERY SCENE, ASK IF THEY HAVE QUESTIONS.
+Finish each screen with a real, short invitation — "anything you want to
+pick at before you move on?" — and then WAIT. Do not talk again until they
+answer. Vary the wording; asking the same eight words nine times is worse
+than not asking. If they say no, tell them which button moves them on.
+
+PACING — READ THE EVIDENCE, DO NOT NAG.
+get_progress tells you how long they have been on a screen and how much of
+it they have taken in. Judge it like a person would:
+- Moving fast and getting things RIGHT is not a problem. It is a learner who
+  is ahead of you. Say nothing about pace.
+- A screen left in a couple of seconds with nothing taken in, or answers
+  arriving faster than anyone could read the question, is skipping. Say
+  something once, kindly and without a lecture: "no rush — that one's worth
+  a read." Then let it go. Never say it twice in a row.
+- If a whole section was passed over, name what they missed in one sentence
+  and offer to go back — offer, do not insist. It is their training.
+
+WHEN THEY FINISH A PART
+The screen shows a part-complete panel with two buttons: "Take this part
+again" and "Back to your route". Tell them the score, then say which button
+you would press and why — a low score means the retake is worth it; a good
+score means the route screen and the next part. Name the button. Do not
+press it.
+
+PART 1 — INCLUSIVE PRACTICE AT WORK  (show_section: part1)
+- Diversity is who is in the room. It is a description, and it is countable.
+- Equity is adjusting support so the same outcome is reachable for everyone.
+  It starts from the outcome and works backwards.
+- Inclusion is whether people can contribute without editing themselves first.
+- The three words get used interchangeably. They should not be.
+
+Activity (part1_activity) — six situations, each either Inclusive or Worth
+flagging. The learner says which; you call answer_card.
+INCLUSIVE: a recent graduate chosen to lead longer-serving colleagues on the
+strength of their work; a project lead with fewer formal qualifications than
+their specialists; a candidate from a low-income background hired purely on
+demonstrated ability.
+WORTH FLAGGING: colleagues with different political views deliberately kept
+off the same project; staff from different cultural backgrounds quietly
+rostered onto separate shifts; a role described as "better suited to someone
+younger" during shortlisting.
+The thread: the three worth flagging all sort people by something other than
+the work itself — background, age, or opinion.
+
+WRAP-UP FOR PART 1 — ELABORATIVE INTERROGATION.
+This is a real study technique: you make the learner explain WHY a fact is
+true, because a reason you generated yourself is far easier to retrieve than
+one you were handed. Name it to them — say you are going to use it and why —
+then ask one "why" question and wait: "Why does sorting people by background
+count as exclusion even when nobody meant harm?" Listen, then add the one
+thing they missed. One question. Do not turn it into a second quiz.
+
+PART 2 — STEREOTYPING AND THE BEHAVIOUR RULES  (show_section: part2)
+- Almost nobody sets out to stereotype. It arrives as a shortcut: a
+  sensible-sounding reason, reached quickly, by someone with too much on.
+  That is why it survives — it never announces itself and it is always
+  defensible after the fact.
+- It shows up in hiring (who "fits"), rostering (who is asked to be
+  flexible), and the good work (who gets the project that gets noticed).
+
+Activity (part2_activity) — six true/false statements. The learner says
+True or False and you call answer_statement; their character then walks over
+and strikes that block, so the answer is visible before it is scored.
+ 1. "If nobody complained, the decision was probably fine." FALSE. Silence is
+    the least reliable signal you have; the people most affected by a decision
+    are usually the least safe to challenge it.
+ 2. "Describing a role as needing a safe pair of hands can quietly screen out
+    newer staff." TRUE. Phrases about temperament stand in for length of
+    service, and nobody has to say so out loud.
+ 3. "Rotating who takes the notes in meetings is a fair thing to formalise."
+    TRUE. Left informal it lands on the same people. A rota costs nothing.
+ 4. "Giving the high-profile project to whoever asks for it is the fairest
+    method." FALSE. It rewards confidence, not capability.
+ 5. "You should raise a concern about a colleague's comment even if they
+    clearly meant no harm." TRUE. Intent and effect are different things.
+ 6. "Adjusting a process for one person's access needs is special treatment."
+    FALSE. It is the definition of equity.
+
+WRAP-UP FOR PART 2 — A KEYWORD MNEMONIC.
+A different technique on purpose: a short peg that hangs several ideas on one
+word you can actually recall under pressure. Give them HFG — Hiring, Flexible,
+Good work — the three places a shortcut hides: who "fits", who is always asked
+to be flexible, and who gets the work that gets noticed. Say the word, say
+what each letter opens, then ask them to say it back to you once. Tell them it
+is a peg and that saying it aloud is what makes it stick.
+
+PART 3 — WHAT TO DO IN THE MOMENT  (show_section: part3)
+Three small moves cover almost every case, and none need a meeting:
+ - NAME IT. "That was Priya's idea." One sentence, in the room, while it
+   still counts.
+ - ASK IT. "What do we mean by fit?" A question is harder to dismiss than an
+   objection.
+ - CHANGE THE DEFAULT. A rota, a rule, a template — anything that stops it
+   depending on who remembers.
+
+Knowledge check (part3_quiz) — three questions. The learner says A, B or C
+and you call answer_question.
+ 1. What separates equity from equality? Equality distributes the same thing
+    to everyone. Equity starts from the outcome and works backwards.
+ 2. What is the strongest evidence a team is genuinely inclusive? That people
+    contribute openly without first editing what they were going to say. A
+    headcount report is diversity; a published policy is intent.
+ 3. A colleague's suggestion is passed over, then praised when someone else
+    repeats it. What is most useful? Name the original contributor in the
+    moment.
+
+WRAP-UP FOR PART 3 — RETRIEVAL PRACTICE, SPACED.
+The best evidenced of the three, so it closes the course. Pulling a fact back
+out of your own head is what fixes it; re-reading it does almost nothing. Say
+that, then close the module by asking them to name the three moves with
+nothing on screen to help — no options, no prompting. Whatever they get, fill
+in the gap, then give them the spacing instruction out loud: try to recall all
+three again tomorrow, and once more at the end of the week. Tell them the gap
+is the active ingredient, not the repetition.
+
+Finish on show_section: summary.
+
+HOW YOU SOUND
+You are being spoken aloud, so write for the ear, not the page.
+- Short sentences. Full stops, not semicolons and not dashes stacked up.
+  A long sentence is read as one breathless run.
+- Never speak punctuation or symbols. If a piece of screen text contains a
+  dot, a bullet, a pipe or a slash, say the words around it and ignore the
+  mark. Never say the word "dot", "bullet", "dash" or "pipe". Never end a
+  sentence with anything but a single full stop, question mark, or exclamation
+  mark — no colons, no trailing dashes, no ellipses, and never two in a row.
+- LEAVE A BEAT BEFORE YOU ASK THEM ANYTHING. Finish teaching, end that
+  sentence cleanly, and then start a NEW short sentence for the question:
+  "Anything you want to pick at?" Never run the teaching and the question
+  together in one breath — the learner needs a moment to realise it is their
+  turn, and a question glued to the end of a sentence gets missed.
+- Two or three sentences, then a natural stop. Give them somewhere to
+  interrupt you — they are meant to be able to.
+- Numbers and letters as words: "part one", not "part 1"; "option A" is fine.
+
+HOW TO TUTOR
+- Teach conversationally. Never read a list at the learner.
+- Ask ONE question at a time, then wait for the answer.
+- Wrong answer: say why in one sentence, warmly, and move to the next.
+- Right answer: affirm briefly, name what they spotted, move on.
+- Keep replies under three sentences wherever you can. This is speech.
+- Praise the thinking, not the person, and not more than once per part.
+- Never repeat an instruction word for word. Say it differently or not at all.
+`.trim();
+
+/* The greeting is the only place the new deal gets explained, so it says both
+   halves: you answer out loud, and you press the buttons. Getting that wrong
+   is what the whole redesign is for — a learner who thinks they only have to
+   listen sits waiting, and a learner who thinks they have to click everything
+   never speaks. */
+/* Ada. Ada Lovelace wrote the first algorithm a century before there was a
+   machine to run it, which is a good name for something that teaches. It is
+   two syllables, it is warm, it is unmistakable over a speaker, and it sits
+   well next to AssemblyAI without trying to be a pun.
+
+   She asks for the learner's name, and that is not politeness. Names are the
+   hardest thing a transcription model does, and getting one right the first
+   time is the most convincing thing this build can demonstrate in ten
+   seconds. It also means everything after it is addressed to a person. */
+const GREETING = "Hi, I'm Ada, and I'll be your tutor for this one. " +
+                 "This works a bit differently to most training. There's nothing " +
+                 "to click through and no boxes to tick. We just talk, the same " +
+                 "way you would with a colleague who knows the subject. " +
+                 "I'll take you through each screen, you answer me out loud, and " +
+                 "if anything doesn't land, stop me and ask. I'd rather explain it " +
+                 "twice than have you nodding along. " +
+                 "When you want to move on, just say continue. " +
+                 "Say begin whenever you're ready and we'll make a start.";
+
+/* The tool list IS the golden rule.
+
+   A prompt that says "never press Continue" is a request. A tool list with
+   no Continue in it is a guarantee, and the difference matters the moment the
+   model is confused, rushed or talked into it. So: it can read, it can answer,
+   it can go where the learner asks. There is deliberately no tool here that
+   moves the course forward — submit, continue, next question, see results —
+   and there never should be. */
+const TOOLS = [{
+  type: 'function',
+  name: 'advance',
+  description:
+    'Move the course on by one step — begin the module, continue to the next ' +
+    'screen, submit a finished activity, go to the next question, open the ' +
+    'unlocked part, or take the choice on a part-complete panel. ' +
+    'CALL THIS ONLY WHEN THE LEARNER HAS JUST ASKED TO MOVE ON — they say ' +
+    '"begin", "continue", "next", "submit", "open it", "go on". NEVER call it ' +
+    'because you have finished talking. The result hands you the new screen\'s ' +
+    'words; read them to the learner straight away.',
+  parameters: { type: 'object', properties: {}, required: [] },
+  execution_mode: 'interactive'
+}, {
+  type: 'function',
+  name: 'get_progress',
+  description:
+    'Read the learner\'s screen right now: which screen, which card, ' +
+    'statement or question is up, what they must press next, and how they ' +
+    'are pacing. Call this BEFORE discussing any activity item and again ' +
+    'after every answer. Never guess what is on screen.',
+  parameters: { type: 'object', properties: {}, required: [] },
+  execution_mode: 'interactive'
+}, {
+  type: 'function',
+  name: 'answer_card',
+  description:
+    'Part 1 only. File the situation card currently on screen into a box, ' +
+    'because the learner said which one out loud. Use ONLY the side they ' +
+    'actually said. This does not submit the activity — the learner presses ' +
+    'Submit themselves once all six are placed.',
+  parameters: {
+    type: 'object',
+    properties: { side: { type: 'string', enum: ['inclusive', 'flag'],
+      description: '"inclusive" for the Inclusive box, "flag" for Worth flagging.' } },
+    required: ['side']
+  },
+  execution_mode: 'interactive'
+}, {
+  type: 'function',
+  name: 'answer_statement',
+  description:
+    'Part 2 only. Judge the true/false statement on screen, because the ' +
+    'learner said True or False out loud. Their character walks to that ' +
+    'block and strikes it. This does not advance to the next statement.',
+  parameters: {
+    type: 'object',
+    properties: { verdict: { type: 'string', enum: ['true', 'false'] } },
+    required: ['verdict']
+  },
+  execution_mode: 'interactive'
+}, {
+  type: 'function',
+  name: 'answer_question',
+  description:
+    'Part 3 only. Select an option in the knowledge check, because the ' +
+    'learner said its letter out loud. This does NOT move to the next ' +
+    'question — the learner presses Continue when they are ready.',
+  parameters: {
+    type: 'object',
+    properties: { letter: { type: 'string', enum: ['a', 'b', 'c'] } },
+    required: ['letter']
+  },
+  execution_mode: 'interactive'
+}, {
+  type: 'function',
+  name: 'show_section',
+  description:
+    'Turn the module to a section. Use this ONLY when the learner asks to ' +
+    'go somewhere — skip ahead, jump to a part, or head for the knowledge ' +
+    'check. Never use it to carry them forward yourself.',
+  parameters: {
+    type: 'object',
+    properties: { section: { type: 'string', enum: Object.keys(SECTIONS) } },
+    required: ['section']
+  },
+  execution_mode: 'interactive'
+}, {
+  type: 'function',
+  name: 'start_again',
+  description:
+    'Reset the whole module and return to the route screen, so the learner ' +
+    'can take it again from the beginning. Only when they ask, and normally ' +
+    'only from the last screen.',
+  parameters: { type: 'object', properties: {}, required: [] },
+  execution_mode: 'interactive'
+}, {
+  type: 'function',
+  name: 'go_to_screen',
+  description:
+    'Go to a numbered screen, 1 to 15. The learner can see the numbers in ' +
+    'the "Where you are" strip beside the module, so they may name one — ' +
+    '"take me back to four", "go to screen nine". Only when they ask.',
+  parameters: {
+    type: 'object',
+    properties: { screen: { type: 'integer', description: 'Screen number, 1-15.' } },
+    required: ['screen']
+  },
+  execution_mode: 'interactive'
+}, {
+  type: 'function',
+  name: 'go_back',
+  description:
+    'Step back one screen, when the learner asks to see the previous one ' +
+    'again. Going back is theirs to ask for; going forward is theirs to press.',
+  parameters: { type: 'object', properties: {}, required: [] },
+  execution_mode: 'interactive'
+}, {
+  type: 'function',
+  name: 'restart_activity',
+  description:
+    'Clear the activity on the current screen and start it from the ' +
+    'beginning. Only when the learner asks to reset or start over.',
+  parameters: { type: 'object', properties: {}, required: [] },
+  execution_mode: 'interactive'
+}, {
+  type: 'function',
+  name: 'retake_part',
+  description:
+    'Start one of the three parts over from its route card, clearing that ' +
+    'part\'s score. Only when the learner asks to retake it.',
+  parameters: {
+    type: 'object',
+    properties: { part: { type: 'integer', enum: [1, 2, 3] } },
+    required: ['part']
+  },
+  execution_mode: 'interactive'
+}];
+
+/* ---------- elements ---------------------------------------------------- */
+const micBtn = document.getElementById('mic');
+const stopBtn = document.getElementById('stop');
+const statusEl = document.getElementById('status');
+const dotEl = document.getElementById('dot');
+const logEl = document.getElementById('log');
+const errEl = document.getElementById('err');
+const tagEl = document.getElementById('tag');
+const deckFrame = document.getElementById('deck');
+
+/* ---------- state ------------------------------------------------------- */
+let ws = null;
+let micCtx = null, micStream = null, micNode = null;
+let outCtx = null, nextPlayAt = 0, scheduled = [];
+let ready = false, stopping = false;
+let partialEl = null;
+let currentSection = null;
+let agentSaid = '';
+
+/* ---------- ui ---------------------------------------------------------- */
+function setStatus(text, cls) {
+  statusEl.textContent = text;
+  dotEl.className = 'dot' + (cls ? ' ' + cls : '');
+}
+function showError(msg) { errEl.textContent = msg; errEl.hidden = false; }
+function clearError() { errEl.hidden = true; }
+
+function addLine(who, text, partial) {
+  const empty = logEl.querySelector('.empty');
+  if (empty) empty.remove();
+  const el = document.createElement('p');
+  el.className = 'line ' + who + (partial ? ' partial' : '');
+  if (who !== 'move') {
+    el.innerHTML = '<b>' + (who === 'you' ? 'You' : 'Tutor') + '</b>';
+  }
+  el.appendChild(document.createTextNode(text));
+  logEl.appendChild(el);
+  logEl.scrollTop = logEl.scrollHeight;
+  return el;
+}
+
+/* ---------- driving the courseware --------------------------------------
+   Same origin, so the deck's own navigation is callable directly. `goto`
+   runs the curtain transition and refuses while one is in flight;
+   `__deck.goto` is the deck's test hook and swaps immediately. Try the
+   pretty one, fall back to the certain one.
+   ---------------------------------------------------------------------- */
+function deckState(win) {
+  /* The ONLY way in. The deck is assembled into one <script>, so its
+     top-level `const Deck` / `const Voice` are script-scope bindings and never
+     become window properties — win.Deck is undefined, and every check written
+     against it passes silently. `__deck` is explicitly assigned to window. */
+  try { return win.__deck && win.__deck.state ? win.__deck.state() : null; }
+  catch (e) { return null; }
+}
+
+/* ------------------------------------------------------------------------
+   THE PACING LEDGER
+
+   She asked for skip detection that tells a learner racing ahead because they
+   already know it from one hammering the buttons to get out. That judgement
+   belongs to the tutor, not to a threshold in here, so this collects EVIDENCE
+   and hands it over in words — how long on the screen, how much of the
+   narration was taken in, how fast the last few answers arrived, and whether
+   a whole section was stepped over. The agent decides what, if anything, to
+   say about it.
+
+   The deliberate asymmetry: fast AND correct is never reported as a problem.
+   ---------------------------------------------------------------------- */
+const Pace = {
+  answers: [],            // timestamps of the last few answers
+  seen: {},               // scene -> the best `heard` fraction reached
+  lastScene: null,
+  lastNoteAt: 0,          // so a pacing note is never given twice in a row
+
+  note(scene, heard) {
+    if (heard != null) this.seen[scene] = Math.max(this.seen[scene] || 0, heard);
+    this.lastScene = scene;
+  },
+  answered() {
+    this.answers.push(Date.now());
+    if (this.answers.length > 4) this.answers.shift();
+  },
+  /* Fastest gap between the last few answers, in seconds. */
+  gap() {
+    if (this.answers.length < 2) return null;
+    let min = Infinity;
+    for (let i = 1; i < this.answers.length; i++)
+      min = Math.min(min, (this.answers[i] - this.answers[i - 1]) / 1000);
+    return min;
+  },
+  /* Content scenes between the last one we saw and this one, with nothing
+     taken in — i.e. stepped straight over. */
+  skipped(scene) {
+    const out = [];
+    for (let n = 1; n < scene; n++) {
+      if (this.seen[n] == null && n !== 3) out.push(n);
+    }
+    return out;
+  }
+};
+
+/* What the learner has to press to move on from here. This is the sentence
+   the tutor needs most and could never work out on its own: the golden rule
+   is only useful if it can name the right button. */
+function pendingAction(doc, st) {
+  const live = sel => {
+    const e = doc.querySelector(sel);
+    if (!e || e.disabled || e.hidden) return null;
+    if (e.offsetParent === null && getComputedStyle(e).position !== 'fixed') return null;
+    return e;
+  };
+  /* Part 2 opens on a character picker, and it is modal: the True and False
+     buttons do not exist until it is dismissed. Without this the tutor talks
+     about statements over the top of a dialog the learner is still reading —
+     the same failure as discussing a card they have not reached. */
+  const chooser = doc.getElementById('chooser');
+  if (chooser && !chooser.hidden) {
+    return 'A "Choose your character" dialog is open. Picking one is the single click in ' +
+           'the whole course — there is no spoken version. Tell them to pick whoever they ' +
+           'like, then say "start the walk" and you will begin it.';
+  }
+  if (live('#modres-retake') || live('#modres-go')) {
+    return 'A part-complete panel is open. Tell them the score, say which you would choose ' +
+           'and why, then WAIT. They say "take it again" or "back to my route"; then advance.';
+  }
+  if (st.scene === 6 && !st.sortSubmitted && live('#btn-submit'))
+    return 'All six are placed. Ask them to say "submit" when ready, then advance.';
+  if (st.scene === 12 && live('#btn-qnext'))
+    return 'They have answered. Ask them to say "continue" when ready, then advance.';
+  if (live('#rules-go'))  return 'Ask them to say "continue" when ready, then advance.';
+  if (live('#btn-start')) return 'The course has not started. Ask them to say "begin" when ready, then advance.';
+  /* The route screen has no Continue — it has three part cards, and the open
+     one is the way in. Reporting "nothing to press" here is how the tutor
+     ends up waiting alongside a learner who is also waiting. */
+  if (st.scene === 3) {
+    const open = doc.querySelector('#scene-3 .shard--open');
+    const name = open ? open.textContent.trim().replace(/\s+/g, ' ').slice(0, 60) : '';
+    return 'This is the route screen' + (name ? '; the part now open is "' + name + '"' : '') +
+           '. Say what is unlocked, then ask them to say "open it" when ready and advance.';
+  }
+  if (live('#btn-next'))  return 'Ask them to say "continue" when they are ready, then advance.';
+  /* An activity screen with nothing forward-facing live: the way out is to
+     answer it, not to move on. Say so, rather than "nothing to press", which
+     left the tutor with no instruction to give. */
+  /* The last screen. There IS nothing forward from here, and that is correct
+     — but a blank cue and no options reads as a fault rather than an ending.
+     Finish the course properly instead of trailing off. */
+  if (st.scene === 14) {
+    return 'They have finished the teaching. One screen left, and it is theirs to keep: ' +
+           'their certificate. Congratulate them warmly and specifically. Then tell them ' +
+           'to say "continue" to go and get it.';
+  }
+  /* The certificate. The course ends here and it ends WELL — this is the last
+     thing they will remember about it, and a flat ending makes a good course
+     feel like a chore that finished. */
+  if (st.scene === 15) {
+    return 'This is the LAST screen and it is their certificate. It shows the three parts, ' +
+           'what they scored on each, and the date. Do ALL of this, warmly and without ' +
+           'rushing:\n' +
+           '1. Congratulate them properly and SPECIFICALLY. Name the part they did best on ' +
+           'and say what that actually shows about how they think, not just the number. ' +
+           'Call get_progress if you need the scores.\n' +
+           '2. Tell them they can type their name onto the certificate and save or print ' +
+           'it, and that nothing they type leaves their browser.\n' +
+           '3. Then leave them with the closing thought, in your own words and unhurried. ' +
+           'The substance of it is this: almost nobody remembers the definitions a week ' +
+           'later, and it does not matter, because this was never really about ' +
+           'definitions. What they will actually carry is the half second between ' +
+           'noticing something and deciding whether to say anything. That half second ' +
+           'is the entire skill, and it is the only part that is genuinely hard. The ' +
+           'three moves they practised exist to make that half second shorter, until one ' +
+           'day they say the thing before they have finished deciding to. That is what ' +
+           'it looks like when this stops being training and starts being how someone ' +
+           'is.\n' +
+           '4. Finish on a real compliment and tell them they can say "start again" to go ' +
+           'round once more, or just close the page. Do not ask them to continue. There ' +
+           'is nowhere left to go.';
+  }
+  if (st.scene === 6)  return 'They answer by saying "Inclusive" or "Worth flagging" for the card on screen.';
+  if (st.scene === 9)  return 'They answer by saying "True" or "False" for the statement on screen.';
+  if (st.scene === 12) return 'They answer by saying "A", "B" or "C".';
+  return 'Nothing to move on to yet — check get_progress for what is outstanding.';
+}
+
+/* ------------------------------------------------------------------------
+   THE WORDS ON THE SCREEN
+
+   The tutor is the only voice now — the deck's own narration is muted, or two
+   people talk at once. That only works if the tutor can SEE the slide, so this
+   lifts the actual copy off whichever scene is live and hands it over to be
+   read aloud in the tutor's own words.
+
+   Without it the agent teaches from its system prompt while the learner looks
+   at a heading nobody has mentioned — which is exactly what it was doing.
+   ---------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------
+   MAKE IT SPEAKABLE
+
+   Everything sent to the agent is eventually SPOKEN, and the agent copies the
+   punctuation it is given. Feed it a colon butting up against a full stop and
+   you get "dot" read aloud; feed it bullets and pipes and they come back as
+   noises. Screen copy is written to be LOOKED at — trailing colons, middle
+   dots in breadcrumbs, em-dash asides — and none of that survives being read.
+
+   So every fragment is reduced to a plain sentence before it goes anywhere:
+   one terminator, one space, no separators, no stacked punctuation.
+   ---------------------------------------------------------------------- */
+function speakable(parts) {
+  /* Folding runs to a fixed point. A single pass consumes the sentence it
+     folds, so two short sentences in a row leave the second untouched —
+     "They shouldn't be. It is countable." needs a second look. */
+  const fold = txt => {
+    let out = txt, prev = null, guard = 0;
+    while (out !== prev && guard++ < 5) {
+      prev = out;
+      out = out.replace(/([a-z0-9]{2,})\.\s+([A-Z][^.!?]{0,30}[.!?])/, (m, b, a) =>
+        a.split(' ').length <= 4 ? b + ', ' + a.charAt(0).toLowerCase() + a.slice(1) : m);
+    }
+    return out;
+  };
+
+  return fold((parts || [])
+    .map(t => unglue(t)
+      .replace(/[\u00b7\u2022\u2023\u25aa|/\\]+/g, ' ')   // separators
+      .replace(/\s*[\u2013\u2014]\s*/g, ', ')             // en/em dash -> comma
+      .replace(/\s+/g, ' ')
+      .replace(/\s*[:;]\s*$/, '')                        // trailing colon or semicolon
+      .replace(/[.!?]+$/, '')                             // strip terminator; we add one
+      .trim())
+    .filter(t => t.length > 1)
+    /* A LABEL MUST NOT BECOME A SENTENCE.
+
+       The three definition boxes are a heading and a line: "Diversity" then
+       "Who is in the room". Joining every fragment with a full stop turned the
+       heading into a one-word sentence — "Diversity. Who is in the room." —
+       and a single word followed by a full stop is exactly the shape a speech
+       engine reads as an abbreviation. Hence "equity dot". The agent then
+       copies the structure it was handed, so the fault propagates into what it
+       says rather than staying in what it reads.
+
+       A short fragment is a label, so it introduces the next one instead of
+       standing alone. */
+    .reduce((out, t, i, all) => {
+      const words = t.split(' ').length;
+      if (words <= 2 && i < all.length - 1) { out.push(t + ' means'); return out; }
+      const prev = out[out.length - 1];
+      if (prev && /\bmeans$/.test(prev)) { out[out.length - 1] = prev + ' ' + t; return out; }
+      out.push(t);
+      return out;
+    }, [])
+    /* Short fragments become CLAUSES, not sentences.
+
+       First run: 182 characters, three full stops. After the script and the
+       screen text were both added: 1554 characters, twenty-seven. The agent
+       mirrors the density it is handed, and a run of four-word sentences is
+       the shape a speech engine reads as an abbreviation — which is where
+       "equity dot" came from. Fewer, longer sentences, same words. */
+    .reduce((out, t) => {
+      const short = t.split(' ').length <= 5;
+      const prev = out[out.length - 1];
+      if (short && prev && prev.split(' ').length < 25) {
+        out[out.length - 1] = prev + ', ' + t.charAt(0).toLowerCase() + t.slice(1);
+      } else out.push(t);
+      return out;
+    }, [])
+    .map(t => t + '.')
+    .join(' ')
+    /* One more pass, over the finished text. The fragment joiner above cannot
+       see short sentences that live INSIDE a single script line — "Diversity
+       is a description. It is countable." arrives as one fragment and stays
+       two sentences. Fold any sentence of four words or fewer into the one
+       before it, so the run of clipped sentences that reads as an
+       abbreviation never forms. */
+    .replace(/\bmeans ([A-Z])/g, (m, c) => 'means ' + c.toLowerCase())
+    .replace(/([.!?])\1+/g, '$1')                         // no ".." or "!!"
+    .replace(/\s*([.,!?])/g, '$1')                        // no space before punctuation
+    .replace(/([.,!?])(?=[^\s])/g, '$1 ')                  // always a space after
+    .replace(/\s+/g, ' ')
+    .trim());
+}
+
+function screenText(doc) {
+  /* An open panel IS the screen as far as the learner is concerned — it
+     covers the scene behind it. Reading the board underneath had the tutor
+     describing the activity they had just finished instead of their score. */
+  const shown = el => {
+    if (!el || el.hidden) return false;
+    /* offsetParent is null for a position:fixed element even when it is
+       plainly on screen — which is why the panel kept being missed and the
+       tutor read the board behind it. pendingAction already had this
+       exception; screenText did not, and that mismatch was the whole bug. */
+    if (el.offsetParent === null &&
+        doc.defaultView.getComputedStyle(el).position !== 'fixed') return false;
+    return true;
+  };
+  const over = ['#modres', '#kc-verdict', '#chooser']
+    .map(sel => doc.querySelector(sel)).filter(shown)[0];
+  const scene = over || doc.querySelector('.scene.is-active');
+  if (!scene) return '';
+  /* [data-r] IS the set of things that arrive one by one — which is exactly
+     the set that needs narrating. The old tag whitelist (h1,h2,p,li…) missed
+     anything built from plain divs, and the three definition boxes on scene 4
+     are exactly that: the tutor could not see them, told the learner they
+     were "on the next screen", and was believed. Read the real set. */
+  /* The label and its line are separate elements but neither carries data-r,
+     so the wrapper was the deepest match and its text came out glued:
+     "DiversityWho is in the room". Naming them makes each a fragment of its
+     own, which the label rule below then joins into a proper sentence. */
+  const SEL = '[data-r], h1, h2, h3, p, li, .obj__text, .qcard__q, .triad__k, .triad__v';
+  const chooser = doc.getElementById('chooser');
+  const all = [].slice.call(scene.querySelectorAll(SEL));
+  const parts = [], seen = {};
+  all.forEach(function (n) {
+    if (n.closest('[hidden]')) return;
+    if (chooser && !shown(chooser) && n.closest('#chooser')) return;
+    /* Keep only the DEEPEST match. A <li> wrapping an .obj__text yields the
+       same sentence twice — once with the bullet number glued to the front,
+       so a plain string-equality check never catches it and the tutor reads
+       every objective out twice. */
+    if (n.querySelector(SEL)) return;
+    const t = n.textContent.replace(/\s+/g, ' ').trim();
+    if (!t || t.length < 3 || seen[t]) return;
+    seen[t] = 1;
+    parts.push(t);
+  });
+  return speakable(parts);
+}
+
+/* Everything the tutor needs to OPEN a screen: what it says, and what the
+   learner has to say to leave it. Returned by advance(), so the moment the
+   learner says "continue" the tutor has the next slide's words in hand and
+   reads them in the same turn — which is the only way it can narrate at all,
+   the API having no way for it to speak unprompted. */
+/* Lines in the recorded script that describe controls this build no longer
+   has. The script was written for a deck with arrows, a transcript button and
+   a pause button; reading them aloud now sends the learner hunting for things
+   that are not there. */
+/* Lines in the recorded script that describe controls this build no longer
+   has. Written for a deck with arrows, number keys, a transcript button and a
+   pause button. Read aloud now they send the learner hunting for things that
+   are not there, or pressing keys that do nothing. Caught "drag" first time
+   and missed "select one for Inclusive, or two" — which is the same fault
+   wearing different words. */
+const STALE = new RegExp([
+  'transcript button', 'pause and replay', 'arrows at the sides', 'using the arrows',
+  'select begin', 'drag', 'press(ing)? (the )?(1|2|one|two)\\b',
+  'select (one|two|1|2) for', 'buttons under the card', 'the two buttons',
+  'keyboard', 'click', 'tab key', 'narration is available as text'
+].join('|'), 'i');
+
+function briefFor(doc, st) {
+  const lines = [];
+
+  /* The written narration for this scene, which is what the recorded voice
+     read and what the slide was designed around. It covers everything on
+     screen, in order, because it was written to. */
+  let script = [];
+  try { const v = deckVoice(); if (v && v.script) script = v.script(); } catch (e) {}
+  script = script.filter(line => !STALE.test(line));
+  if (script.length) {
+    /* No bullets, no digits, no brackets. Each is a character a text-to-speech
+       engine may decide to voice, and the agent echoes the shape of what it is
+       given — which is how a full stop ends up read aloud as the word "dot".
+       Plain prose in, plain prose out. */
+    /* No labels either. The script writes its own ordering, and prefixing it
+       produced "Second, First, you'll be able to..." — which the agent then
+       echoes. The lines are already in order; sending them as plain prose is
+       enough. */
+    lines.push('THE SCRIPT FOR THIS SCREEN. Cover all of it, in this order, in your ' +
+               'own words. ' + speakable(script));
+  }
+
+  /* The written script and the on-screen text say the same thing in most
+     scenes, so sending both doubled the length for no new information — and
+     doubled the sentence count with it. Send the screen text only where
+     there is no script to cover it. */
+  if (!script.length) {
+    const words = screenText(doc);
+    if (words) lines.push('THE SCREEN SAYS. ' + words);
+  }
+  lines.push('NEXT. ' + pendingAction(doc, st));
+  /* On an activity, the item IS the screen. Saying "the first situation is on
+     the screen" and stopping leaves a learner who is listening rather than
+     reading with nothing at all — which is exactly what she hit. */
+  if (ACTIVITY_SCENES.indexOf(st.scene) !== -1) {
+    lines.push('THIS IS AN ACTIVITY. READ THE ITEM ON SCREEN OUT LOUD, IN FULL, before ' +
+               'you ask them anything. Never say "the first one is on the screen" and ' +
+               'stop. They may not be reading. Then ask for their answer and WAIT.');
+  } else {
+    lines.push('Teach this screen NOW. Cover every point above before you stop. ' +
+               'If the screen has three boxes on it, all three get explained on THIS ' +
+               'screen, not the next one. Each point appears as you reach it, so use ' +
+               'its own distinctive words and keep to the order. Warm and ' +
+               'conversational, short sentences, never a list read aloud. Then ask if ' +
+               'they have questions and tell them what to SAY to move on.');
+  }
+  return lines.join(' ');
+}
+
+/* What is actually on screen, in words the agent can act on.
+
+   Without this the tutor is blind: it drives the deck but gets nothing back,
+   so it works down its own list while the learner is looking at a different
+   card. That is exactly what happened — it asked about a situation the
+   learner had not reached, because nothing ever told it which one was up. */
+function readProgress() {
+  const win = deckFrame.contentWindow;
+  const st = deckState(win);
+  if (!win || !st) return 'The module is still loading.';
+  const doc = win.document;
+  const txt = sel => { const e = doc.querySelector(sel); return e ? e.textContent.trim() : ''; };
+
+  const scene = st.scene;
+  Pace.note(scene, st.heard);
+
+  const here = Object.keys(SECTIONS).find(k => SECTIONS[k].scene === scene);
+  const label = here ? SECTIONS[here].label : (txt('#crumb') || 'screen ' + scene);
+  const lines = ['On screen: ' + label + '.'];
+
+  /* Part 1 — the sorting board. */
+  if (scene === 6) {
+    const card = doc.querySelector('#deck-stack .sit');
+    const cardText = card ? card.textContent.replace(/^\s*Situation\s*/, '').trim() : null;
+    lines.push(txt('#tally') + '.');
+    if (st.sortSubmitted) {
+      lines.push('Already submitted, scoring ' + st.sortScore + ' of 6.');
+    } else if (cardText) {
+      lines.push('The card the learner is looking at RIGHT NOW reads: "' + cardText + '"');
+      lines.push('When they say Inclusive or Worth flagging, call answer_card.');
+    } else {
+      lines.push('All six cards are placed.');
+    }
+  }
+
+  /* Part 2 — the true/false walk. */
+  else if (scene === 9) {
+    const stem = txt('#rules-stem');
+    lines.push(txt('#rules-eyebrow') + '. ' + txt('#rules-count') + ' of 6 judged.');
+    if (stem) lines.push('The statement on screen is: "' + stem + '"');
+    lines.push('When they say True or False, call answer_statement.');
+  }
+
+  /* Part 3 — the knowledge check. */
+  else if (scene === 12) {
+    const q = txt('#qcard .qcard__q');
+    if (q) lines.push('The question on screen is: "' + q + '"');
+    const opts = [...doc.querySelectorAll('#qcard .opt .opt__txt')].map(o => o.textContent.trim());
+    if (opts.length) lines.push('Options: ' + opts.map((o, i) => 'ABC'[i] + ') ' + o).join('  '));
+    const answered = [...doc.querySelectorAll('#qcard .opt')].some(o => o.disabled);
+    lines.push(answered ? 'This one is already answered.'
+                        : 'When they say A, B or C, call answer_question.');
+  }
+
+  else if (scene === 13) {
+    lines.push('Results: sort ' + st.sortScore + '/6, quiz ' + st.quizScore + '/3.');
+  }
+
+  lines.push('NEXT. ' + pendingAction(doc, st));
+  lines.push(Journey.summary());
+  if (Stop.msLeft() > 0) {
+    lines.push('HOLD: a deliberate pause is in force for about ' + Stop.secsLeft() +
+               ' more seconds. Keep talking to them — do not call advance yet.');
+  }
+
+  /* ---- the pacing evidence, and only when it means something ---------- */
+  const notes = [];
+  const gap = Pace.gap();
+  const heard = st.heard;
+  const fastAndRight = gap != null && gap < 2 && st.sortScore + st.quizScore > 0;
+
+  if (heard != null && heard < 0.25 && st.dwell < 5 && !fastAndRight)
+    notes.push('they have been on this screen ' + st.dwell + 's and heard almost none of it');
+  if (gap != null && gap < 1.2)
+    notes.push('their last answers came ' + gap.toFixed(1) + 's apart, faster than the question can be read');
+
+  const skipped = Pace.skipped(scene);
+  if (skipped.length >= 2)
+    notes.push('they passed straight over ' + skipped.length + ' earlier screens without stopping');
+
+  if (notes.length && Date.now() - Pace.lastNoteAt > 45000) {
+    Pace.lastNoteAt = Date.now();
+    lines.push('PACING: ' + notes.join('; ') + '. Judge it — if they are also ' +
+               'getting things right they are simply ahead of you and you should say nothing ' +
+               'about pace. If not, one gentle word, once, then let it go.');
+  } else if (heard != null && heard > 0.6) {
+    lines.push('PACING: fine. Say nothing about pace.');
+  }
+
+  return lines.join(' ');
+}
+
+/* ------------------------------------------------------------------------
+   ANSWERING FOR THE LEARNER
+
+   Every one of these goes through __deck.voice, which clicks the control a
+   hand would click. That matters more than it looks: the deck's own rule is
+   that every physical action has a button equivalent and ONE function serves
+   both, because parallel routes drift. A spoken answer that set state
+   directly would skip the character's walk, the tally, the spoken response
+   and the scoring with it.
+
+   None of them presses Submit, Continue or Next. That is the whole design.
+   ---------------------------------------------------------------------- */
+function deckVoice() {
+  try {
+    const win = deckFrame.contentWindow;
+    return win && win.__deck && win.__deck.voice ? win.__deck.voice : null;
+  } catch (e) { return null; }
+}
+
+function answerCard(side) {
+  const v = deckVoice(), win = deckFrame.contentWindow, st = deckState(win);
+  if (!v) return 'The module is not ready yet.';
+  if (!st || st.scene !== 6) return 'That only works on the Part 1 sorting board, and we are not on it.';
+  const doc = win.document;
+
+  /* Remember the card BEFORE it moves, so we can find it again and see
+     whether the learner got it right. */
+  const card = doc.querySelector('#deck-stack .sit');
+  const cardId = card ? card.dataset.id : null;
+  const cardText = card ? card.textContent.replace(/^\s*Situation\s*/, '').trim() : '';
+
+  const yes = side === 'inclusive';
+  if (!v.file(yes ? 'yes' : 'no'))
+    return 'That could not go in. The ' + (yes ? 'Inclusive' : 'Worth flagging') +
+           ' box may already be full. Tell the learner, and call get_progress.';
+  Pace.answered();
+
+  /* Was it right? The card carries the answer on it, so this is knowable NOW
+     rather than at submit. Without it the tutor said "that is in the flagging
+     box" to six answers in a row and the learner reached 4 out of 6 having
+     been told nothing was wrong. */
+  let verdict = '';
+  try {
+    const placed = [].slice.call(doc.querySelectorAll('.zone .sit'))
+      .filter(n => n.dataset.id === cardId)[0];
+    if (placed && placed.parentElement) {
+      const ok = placed.dataset.side === placed.parentElement.dataset.side;
+      verdict = ok
+        ? 'CORRECT. Say so briefly and say WHY in one sentence, then move on.'
+        : 'WRONG. It actually belongs in "' +
+          (placed.dataset.side === 'yes' ? 'Inclusive' : 'Worth flagging') +
+          '". Tell them gently that it is the other way round, explain why in one ' +
+          'sentence, and leave it where it is. They will see it marked at the end.';
+    }
+  } catch (e) {}
+
+  /* The NEXT card, in the same breath. Two tool calls produced two spoken
+     turns, which is why it kept repeating itself: "That is in the flagging
+     box. Let us look at the next one." then "That is in the flagging box. The
+     next one says..." One result, one reply. DO NOT call get_progress after
+     this. */
+  const next = doc.querySelector('#deck-stack .sit');
+  const nextText = next ? next.textContent.replace(/^\s*Situation\s*/, '').trim() : '';
+  const tally = (doc.querySelector('#tally') || {}).textContent || '';
+
+  return speakable([
+    'Filed under ' + (yes ? 'Inclusive' : 'Worth flagging') + ' the card that read ' + cardText,
+    verdict,
+    tally,
+    nextText
+      ? 'THE NEXT CARD READS. ' + nextText + '. Ask them about THIS one now. Do not call get_progress, you already have it'
+      : 'That was the sixth and last card. Ask them to say submit when they are ready'
+  ].filter(Boolean));
+}
+
+function answerStatement(verdict) {
+  const v = deckVoice(), win = deckFrame.contentWindow, st = deckState(win);
+  if (!v) return 'The module is not ready yet.';
+  if (!st || st.scene !== 9) return 'That only works on the Part 2 walk, and we are not on it.';
+  if (!v.judge(verdict === 'true'))
+    return 'The blocks are not live yet. The character may still be walking. Wait, then try again.';
+  Pace.answered();
+
+  /* The character has to walk over and strike the block before anything is
+     scored, so the verdict does not exist yet. Wait for it, then hand back
+     what the screen actually says.
+
+     And then STOP. The tutor has all six statements in its system prompt, so
+     left to itself it simply reads the next one out — while the deck is still
+     showing the verdict for this one. That is the "audio moves on but the
+     screen is stuck" fault: nothing was stuck, the tutor had run ahead of it. */
+  return new Promise(resolve => {
+    setTimeout(() => {
+      let said = '';
+      try {
+        const doc = win.document;
+        said = speakable([(doc.querySelector('#rules-result') || {}).textContent || '']);
+      } catch (e) {}
+      resolve(speakable([
+        'They answered ' + verdict,
+        said ? 'THE SCREEN NOW SAYS. ' + said : '',
+        'Say that back to them in your own words, warmly, and say why',
+        'THEN STOP. Do NOT read them the next statement. The next statement is not ' +
+        'on screen yet and will not be until they say continue. Ask if they have ' +
+        'questions, tell them to say continue, and WAIT'
+      ].filter(Boolean)));
+    }, 2600);
+  });
+}
+
+function answerQuestion(letter) {
+  const v = deckVoice(), st = deckState(deckFrame.contentWindow);
+  if (!v) return 'The module is not ready yet.';
+  if (!st || st.scene !== 12) return 'That only works on the knowledge check, and we are not on it.';
+  if (!v.option(letter))
+    return 'That option could not be selected — this question may already be answered. Call get_progress.';
+  Pace.answered();
+  return 'Selected ' + String(letter).toUpperCase() + '. Call get_progress to see whether it was right, ' +
+         'say why in one sentence, then tell them to press Continue when they are ready. Do not press it.';
+}
+
+/* ------------------------------------------------------------------------
+   ADVANCE — the spoken Continue
+
+   The golden rule was never "only a finger may advance the course"; it was
+   "the AI must not advance it ITSELF". Voice is the input device now, so
+   saying "continue" IS the learner deciding — the same decision, a different
+   hand. What stays banned is advancing when nobody asked, and that lives in
+   the prompt because no tool list can express "only if they said so".
+
+   This also fixes narration, because they are the same problem: the agent can
+   only speak on a turn, and "continue" is a turn. So this waits for the new
+   screen to settle and hands its actual words back, which the tutor then
+   reads out in the same breath. That is why the course can narrate itself at
+   all.
+   ---------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------
+   ENTRANCES ON THE TUTOR'S VOICE
+
+   The recorded narration used to own this: each line arrived as the voice
+   reached it, off the audio clock, 0.34s ahead of the word. It is the best
+   thing about the deck and it died with the recorded voice.
+
+   This rebuilds it on the AI. The agent's own words stream back as
+   `transcript.agent.delta`, so we match those against what is on the slide
+   and reveal each element when the tutor actually reaches it — point one
+   appears as it says point one.
+
+   The one subtlety that makes it work: the TEXT arrives well ahead of the
+   AUDIO, because chunks come faster than real time and are scheduled out to
+   play in sequence. Revealing on the text would put every line on screen
+   before it was spoken. So the reveal is delayed by exactly the audio backlog
+   we are already tracking to schedule playback — matched on text, fired on
+   the audio clock.
+   ---------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------
+   WHERE THE VOICE ACTUALLY IS
+
+   The first attempt delayed each reveal by `nextPlayAt - currentTime` — the
+   whole remaining audio buffer. Chunks arrive far faster than they play, so
+   by the time a word's text arrived the buffer already held the entire reply,
+   and every element was pushed to the end of it: blank screen, then the whole
+   slide at once. That is the bug she saw.
+
+   The fix is to stop delaying and start ASKING. Text and audio grow together
+   — the TTS is voicing the words as they are generated — so the character
+   currently being spoken is roughly
+
+       (seconds played / seconds received) x characters received
+
+   A ticker reads that and releases whatever the voice has now passed. It is
+   an estimate, but it is an estimate that tracks the voice instead of the
+   buffer, and it degrades gently: slightly early or late, never all-at-once.
+   ---------------------------------------------------------------------- */
+const Speech = {
+  startAt: 0,        // outCtx time the current reply began playing
+  audioSec: 0,       // seconds of audio received for it
+  chars: 0,          // characters of transcript received for it
+
+  reset() { this.startAt = 0; this.audioSec = 0; this.chars = 0; },
+
+  /* Characters the voice has actually reached, or null when unknowable. */
+  spokenChars() {
+    try {
+      if (!outCtx || !this.startAt || !this.audioSec || !this.chars) return null;
+      const played = Math.max(0, Math.min(outCtx.currentTime - this.startAt, this.audioSec));
+      return (played / this.audioSec) * this.chars;
+    } catch (e) { return null; }
+  },
+  /* Has the voice finished? `false` while audio is still scheduled. Note it
+     reports NOT done when no audio has arrived yet — otherwise a reply is
+     declared finished before it has been heard at all. */
+  started() { return !!this.startAt && this.audioSec > 0; },
+  done() {
+    try {
+      if (!outCtx) return true;
+      if (!this.started()) return false;
+      return (outCtx.currentTime - this.startAt) >= this.audioSec - 0.15;
+    } catch (e) { return true; }
+  }
+};
+
+const STOPWORDS = ('the a an and or but of to in on at for with from by is are was ' +
+  'were be been it its this that these those you your they their we our as not ' +
+  'can will would should could have has had do does did if then than so what which ' +
+  'who how when where why all any each one two three more most into about over').split(' ');
+
+/* Adjacent block elements have no whitespace between them in textContent, so
+   the definition boxes came out as "DiversityWho is in the room" — and the
+   keyword "diversitywho" is a word no human will ever say. That token could
+   never match, so the screen could never be completed. Split the seam. */
+function unglue(text) {
+  return String(text).replace(/([a-z])([A-Z])/g, '$1 $2');
+}
+
+function keywords(text) {
+  const seen = {};
+  return (unglue(text).toLowerCase().match(/[a-z']{4,}/g) || [])
+    .filter(w => STOPWORDS.indexOf(w) === -1 && !seen[w] && (seen[w] = 1))
+    .slice(0, 6);
+}
+
+const Reveal = {
+  items: [],
+  spoken: '',
+  backstop: null,
+  ticker: null,
+  scene: 0,
+
+  /* Which screens the learner has genuinely heard out. Remembered, so going
+     back to one already covered does not lock them in again. */
+  heardInFull: {},
+
+  begin() {
+    this.stop();
+    this.items = []; this.spoken = ''; this.replies = 0;
+    const st = deckState(deckFrame.contentWindow);
+    this.scene = st ? st.scene : 0;
+
+    const v = deckVoice();
+    if (!v || typeof v.hold !== 'function') return;
+    /* Only hold a slide when there is a voice coming to fill it. Holding one
+       with no live session leaves the learner staring at an empty frame. */
+    if (!ready) { try { v.showAll(); } catch (e) {} return; }
+    try {
+      /* The deck has already held this scene and landed its heading. Read
+         what is there WITHOUT hiding it again — re-holding would blank the
+         title the learner is already looking at. */
+      this.items = (v.list ? v.list() : v.hold()).map(it => ({
+        i: it.i, keys: keywords(it.text), shown: !!it.shown,
+        hasText: !!it.text, at: it.shown ? 0 : null
+      }));
+    } catch (e) { this.items = []; }
+
+    this.backstop = setTimeout(() => this.finish(), 12000);
+    this.ticker = setInterval(() => this.release(), 110);
+  },
+
+  stop() {
+    clearTimeout(this.backstop); clearInterval(this.ticker);
+    this.backstop = null; this.ticker = null;
+  },
+
+  /* Agent words arriving. Mark WHERE each element was mentioned; do not show
+     it yet — the voice has not got there. */
+  heard(textSoFar) {
+    if (!this.items.length) return;
+    this.spoken = (textSoFar || '').toLowerCase();
+    Speech.chars = this.spoken.length;
+
+    for (let k = 0; k < this.items.length; k++) {
+      const it = this.items[k];
+      if (it.at !== null) continue;
+      /* An element with no words of its own rides in with the next one. */
+      if (!it.hasText || !it.keys.length) { it.at = this.markOf(k); continue; }
+      let first = -1;
+      it.keys.forEach(w => {
+        const at = this.spoken.indexOf(w);
+        if (at !== -1 && (first === -1 || at < first)) first = at;
+      });
+      if (first === -1) break;               // strictly in order
+      it.at = Math.max(first, this.markOf(k));
+    }
+  },
+  /* Never earlier than the element before it. */
+  markOf(k) { return k > 0 && this.items[k - 1].at !== null ? this.items[k - 1].at : 0; },
+
+  /* Release whatever the voice has now passed. */
+  release() {
+    const v = deckVoice(); if (!v) return;
+    const pos = Speech.spokenChars();
+    if (pos === null) return;
+    this.items.forEach(it => {
+      if (it.shown || it.at === null) return;
+      if (it.at <= pos) { it.shown = true; try { v.show(it.i); } catch (e) {} }
+    });
+  },
+
+  /* The reply has finished. `complete` is false when the learner talked over
+     it — an interrupted screen has not been heard out. */
+  finish(complete) {
+    this.stop();
+    if (complete) this.replies = (this.replies || 0) + 1;
+    const v = deckVoice();
+    if (v && typeof v.showAll === 'function') {
+      setTimeout(() => { try { v.showAll(); } catch (e) {} }, 250);
+    }
+    const everyPointCovered = this.items.length > 0 &&
+                              this.items.every(it => it.at !== null);
+    /* THE SAFETY VALVE. A lock that cannot be satisfied is a trap, and the
+       learner has no way out of one — they cannot click past it any more.
+       If the tutor has talked this screen through twice and the matcher still
+       is not satisfied, the matcher is wrong, not the tutor. Let them go. */
+    const talkedEnough = (this.replies || 0) >= 2;
+    if (complete && this.scene && (everyPointCovered || talkedEnough)) {
+      this.heardInFull[this.scene] = true;
+      renderJourney();
+    }
+    this.items.forEach(it => { it.shown = true; });
+  },
+
+  /* Which points the tutor has not yet mentioned — so a refusal can say what
+     is still owed rather than just "no". */
+  missing() {
+    return this.items.filter(it => it.at === null && it.hasText).length;
+  }
+};
+
+/* ------------------------------------------------------------------------
+   THE JOURNEY LOG
+
+   She asked for this after the tutor and the deck came apart: "if the system
+   is moving forward and the user is supposed to be on a beginning screen
+   still, there needs to be a log kept for where the user is at."
+
+   It is the record of what actually happened — every screen entered, in
+   order, and which activities were genuinely finished. get_progress hands it
+   over, so the tutor can never believe the learner is somewhere they are not,
+   and it is drawn in the rail so the discrepancy is visible rather than
+   inferred.
+   ---------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------
+   BEST SCORES
+
+   Kept in the browser, so a learner who takes a part again can see whether
+   they beat themselves, and one who moves on knowing they got three wrong can
+   come back later and put it right. A score you cannot improve is a verdict;
+   a score you can is a reason to return.
+   ---------------------------------------------------------------------- */
+const Best = {
+  KEY: 'ipw:best',
+  data: (() => { try { return JSON.parse(localStorage.getItem('ipw:best') || '{}'); }
+                 catch (e) { return {}; } })(),
+  get(part) { return this.data[part] || null; },
+  record(part, score, of) {
+    const prev = this.data[part];
+    const improved = !prev || score > prev.score;
+    if (improved) {
+      this.data[part] = { score: score, of: of, at: Date.now() };
+      try { localStorage.setItem(this.KEY, JSON.stringify(this.data)); } catch (e) {}
+    }
+    return { improved: improved, previous: prev ? prev.score : null };
+  }
+};
+
+const Journey = {
+  visits: [],                 // [{scene, at}] in order
+  completed: {},              // scene -> {score, of} for activities actually finished
+  enter(scene) {
+    const last = this.visits[this.visits.length - 1];
+    if (last && last.scene === scene) return;
+    this.visits.push({ scene: scene, at: Date.now() });
+    renderJourney();
+  },
+  complete(scene, score, of) {
+    this.completed[scene] = { score: score, of: of };
+    renderJourney();
+  },
+  /* In words, for the agent. */
+  summary() {
+    const names = { 6: 'Sort the situations', 9: 'Walk the rules', 12: 'Knowledge check' };
+    const done = Object.keys(this.completed).map(k =>
+      names[k] + ' ' + this.completed[k].score + '/' + this.completed[k].of);
+    const path = this.visits.slice(-8).map(v => v.scene).join(', then ');
+    return 'JOURNEY: screens visited ' + path +
+      '. Activities genuinely completed: ' + (done.length ? done.join('; ') : 'none yet') + '.';
+  }
+};
+
+/* Watch the deck rather than trusting our own bookkeeping — the learner can
+   move it with the keyboard too, and a log that only records what the tutor
+   did is the exact blind spot this exists to close. */
+let journeyTimer = null;
+function watchJourney() {
+  /* One loop, ever. Every session.ready used to add another — a reconnect, a
+     retry, a second Start — and they never stopped. Three stacked polls put
+     the deck at 37fps and made the whole thing feel like treacle, which is the
+     "very laggy" she was hitting. Nothing about it looks like a leak until you
+     measure the frame time inside the iframe. */
+  if (journeyTimer) return;
+  let last = null;
+  journeyTimer = setInterval(() => {
+    try {
+      const win = deckFrame.contentWindow;
+      const st = deckState(win);
+      if (!st) return;
+      if (st.scene !== last) { last = st.scene; Journey.enter(st.scene); }
+      if (st.sortSubmitted && !Journey.completed[6])  { Journey.complete(6, st.sortScore, 6);  Stop.lastPartDone = 1; }
+      if (st.rulesDone     && !Journey.completed[9])  { Journey.complete(9, st.rulesScore, 6);  Stop.lastPartDone = 2; }
+      if (st.quizDone      && !Journey.completed[12]) { Journey.complete(12, st.quizScore, 3); Stop.lastPartDone = 3; }
+
+      /* Arm the stops off what is actually on screen. */
+      const panel = win.document.getElementById('modres');
+      const panelOpen = panel && !panel.hidden;
+      if (panelOpen) {
+        Stop.arm('panel', PART_OF_SCENE[st.scene] || Stop.lastPartDone);
+      } else if (st.scene === 3 && Stop.lastPartDone && Stop.routeServed !== Stop.lastPartDone) {
+        Stop.routeServed = Stop.lastPartDone;
+        Stop.arm('route', Stop.lastPartDone);
+      } else if (Stop.kind && Stop.msLeft() === 0) {
+        Stop.clear();
+      } else if (Stop.kind === 'panel' && !panelOpen) {
+        Stop.clear();
+      }
+    } catch (e) {}
+  }, 700);
+}
+
+/* ------------------------------------------------------------------------
+   MANDATORY STOPS
+
+   Finishing a part is the moment the learning is supposed to land, and it was
+   being skipped: the agent called advance for "submit" and then called it
+   again, and the second click went straight through the "Part 1 complete"
+   panel before the learner had seen it. A prompt rule would not have held —
+   the model calls the tool it has — so the stop is enforced here instead.
+
+   Two stops, both timed:
+     the part-complete panel — long enough to hear the score;
+     the route screen       — thirty seconds, which is where the end-of-part
+                              wrap-up is delivered and where the shape of the
+                              course is visible again.
+
+   advance() refuses during a stop and hands back what to TALK ABOUT, so a
+   refusal is never a dead end. The learner can still go back, retake, or jump
+   with show_section — this holds the forward door only.
+   ---------------------------------------------------------------------- */
+const PART_OF_SCENE = { 6: 1, 9: 2, 12: 3 };
+
+/* One wrap-up per part, each a different technique with real evidence behind
+   it, named to the learner. Delivered on the route screen because that is
+   where they have just finished something and can see what is left. */
+const WRAPUP = {
+  1: 'WRAP-UP FOR PART 1 — use ELABORATIVE INTERROGATION. Name the technique and ' +
+     'say why it works: a reason you produce yourself is far easier to recall than ' +
+     'one you were handed. Then ask ONE why-question and wait for a real answer — ' +
+     '"why does sorting people by background count as exclusion even when nobody ' +
+     'meant harm?" Listen, add the one thing they missed, stop.',
+  2: 'WRAP-UP FOR PART 2 — use a KEYWORD MNEMONIC, deliberately a different ' +
+     'technique from last time. Give them HFG: Hiring, Flexible, Good work — the ' +
+     'three places a shortcut hides. Who "fits", who is always asked to be ' +
+     'flexible, and who gets the work that gets noticed. Say the peg, say what ' +
+     'each letter opens, then ask them to say it back to you once. Tell them ' +
+     'saying it aloud is what makes it stick.',
+  3: 'WRAP-UP FOR PART 3 — use SPACED RETRIEVAL PRACTICE, the best evidenced of ' +
+     'the three. Say that pulling a fact back out of your own head is what fixes ' +
+     'it, and re-reading does almost nothing. Then ask them to name the three ' +
+     'moves with nothing on screen to help. Fill any gap, then give the spacing ' +
+     'instruction out loud: recall all three again tomorrow, and once more at the ' +
+     'end of the week. The gap is the active ingredient, not the repetition.'
+};
+
+const Stop = {
+  PANEL_MS: 7000,
+  ROUTE_MS: 30000,
+  kind: null,        // 'panel' | 'route'
+  part: 0,
+  since: 0,
+  lastPartDone: 0,
+  routeServed: 0,    // which part's route pause has already been armed
+
+  arm(kind, part) {
+    if (this.kind === kind && this.part === part) return;
+    this.kind = kind; this.part = part; this.since = Date.now();
+  },
+  clear() { this.kind = null; this.part = 0; this.since = 0; },
+  msLeft() {
+    if (!this.kind) return 0;
+    const span = this.kind === 'route' ? this.ROUTE_MS : this.PANEL_MS;
+    return Math.max(0, span - (Date.now() - this.since));
+  },
+  secsLeft() { return Math.ceil(this.msLeft() / 1000); }
+};
+
+const ACTIVITY_SCENES = [6, 9, 12];
+
+/* Which control is "forward" from here — and, just as importantly, which is
+   NOT.
+
+   The first version handed this to the deck's own Continue button in the
+   chrome, which is a free-roam control: it walks scene to scene and bypasses
+   the route screen entirely. Saying "continue" after finishing Part 1 then
+   went route -> 4 -> 5 -> back through the finished board -> 7 -> 8 -> into
+   Part 2, with the learner never asking for any of it. The deck's gate did not
+   stop it because the gate asks "have you EVER submitted", not "have you
+   finished the one in front of you".
+
+   So this follows the course's designed path instead:
+     - the route screen is the hub, and the way out of it is to OPEN a part,
+       never to slide sideways with the chrome;
+     - on an activity scene the only way forward is that activity's own
+       control, or the panel that appears when it is done. If neither is live,
+       the activity is unfinished and advance must refuse.
+   ---------------------------------------------------------------------- */
+function forwardControl(doc, st) {
+  const live = sel => {
+    const e = doc.querySelector(sel);
+    if (!e || e.disabled || e.hidden) return null;
+    if (e.offsetParent === null &&
+        doc.defaultView.getComputedStyle(e).position !== 'fixed') return null;
+    return e;
+  };
+
+  /* A panel over the top always owns the next move. */
+  const panel = live('#chooser-go') || live('#modres-go');
+  if (panel) return panel;
+
+  /* The route screen: open the part, never the chrome — and the part they
+     have NOT done. A finished card keeps the same `shard--open` class and
+     only changes its label to "Done — open again", so taking the first match
+     sent the learner back through Part 1 every time they said continue. */
+  if (st.scene === 3) {
+    const open = [].slice.call(doc.querySelectorAll('#scene-3 .shard--open'));
+    const fresh = open.filter(sh => !/\bdone\b/i.test(sh.textContent))[0];
+    return fresh || open[0] || null;
+  }
+
+  /* An activity: its own control only. No chrome escape hatch. */
+  if (ACTIVITY_SCENES.indexOf(st.scene) !== -1) {
+    return live('#btn-submit') || live('#btn-qnext') || live('#rules-go');
+  }
+
+  return live('#btn-start') || live('#btn-next');
+}
+
+let lastAdvanceAt = 0;
+let lastAdvanceScene = null;
+
+function advance() {
+  const win = deckFrame.contentWindow;
+  const st = deckState(win);
+  if (!win || !st) return Promise.resolve('The module is not ready yet.');
+
+  /* The agent calls this twice in a row, repeatedly. A second call used to
+     land on a refusal, which reads to a model as a failure worth retrying —
+     and it loops, apologises, and starts narrating from memory. So a quick
+     repeat is answered rather than refused: you already moved, here is where
+     you are. Nothing to retry. */
+  if (Date.now() - lastAdvanceAt < 3000) {
+    /* Say which of the two it actually was. Telling the agent it "already
+       moved" when the first call was held is a lie, and it acts on it. */
+    const moved = lastAdvanceScene !== null && lastAdvanceScene !== st.scene;
+    lastAdvanceAt = Date.now();
+    /* A HELD repeat used to say only "nothing has changed", which tells the
+       agent it failed and gives it nothing to say — so it improvised, and what
+       it improvised was "I'm having a bit of a technical struggle". The
+       learner is then being told the product is broken when it is doing
+       exactly what it was built to do. So the repeat now carries the REAL
+       reason and the exact words to use. */
+    const why = Stop.msLeft() > 0
+      ? ' The reason is the deliberate pause on this screen: about ' + Stop.secsLeft() +
+        ' more seconds. This is NOT a fault and you must not describe it as one. ' +
+        'Say something like "let us sit with that one for a moment" and keep talking ' +
+        'to them about what they have just done until the time is up.'
+      : ' Read what is below and talk to the learner about it.';
+    return Promise.resolve(
+      (moved
+        ? 'You have ALREADY moved — the previous call landed and this one changed nothing.'
+        : 'You called this a moment ago and it was HELD. Calling it again changes nothing.' +
+          why) +
+      ' NEVER tell the learner there is a technical problem, a system issue, or a loop. ' +
+      'Do not call advance again until they ask. ' + briefFor(win.document, st));
+  }
+  lastAdvanceAt = Date.now();
+  lastAdvanceScene = st.scene;
+  /* The deck refuses navigation while a curtain is sweeping, so a second
+     advance arriving mid-transition clicked whatever happened to be under the
+     cursor and reported a move that never happened. Wait it out. */
+  if (st.busy) {
+    return new Promise(resolve => setTimeout(() => resolve(advance()), 700));
+  }
+  /* ---- heard it out yet? ---------------------------------------------
+     A screen cannot be left until the tutor has talked through all of it.
+     Not a pacing nudge — a lock, because "I can say continue over the top of
+     it" makes every other piece of pacing work pointless.
+
+     It is per screen and it is REMEMBERED: a screen already heard out stays
+     unlocked, so going back to look at something again costs nothing. */
+  const doc0 = win.document;
+  /* The narration lock belongs to SCREENS OF PROSE, not to activities.
+
+     On the walk, "continue" reveals the next statement — it does not turn a
+     page — and the screen's own elements are a game board, a counter and a
+     verdict panel that change under you. Holding that behind "have you read
+     it all out" meant the tutor asked to move on, was refused, apologised,
+     and read the next statement itself while the board stayed on the last
+     one. That is the "stuck on the old question" fault.
+
+     Activities have a stronger gate of their own: you cannot leave until the
+     activity is finished. That is the right lock for them. */
+  const isActivity = ACTIVITY_SCENES.indexOf(st.scene) !== -1;
+  if (!isActivity && !Reveal.heardInFull[st.scene] && Reveal.items.length) {
+    const owed = Reveal.missing();
+    if (owed > 0 || !Speech.done()) {
+      return Promise.resolve(
+        'STAY HERE. ' + briefFor(doc0, st) +
+        ' --- You have not talked them through this screen yet. ' +
+        (owed > 0
+          ? 'There ' + (owed === 1 ? 'is 1 point' : 'are ' + owed + ' points') +
+            ' on it you have not covered, and each one only appears as you reach it — ' +
+            'so right now they are looking at a gap where it should be. Cover the rest, ' +
+            'in the order they are listed, using each point\'s own words.'
+          : 'Finish what you are saying first.') +
+        ' Then ask if they have questions and let them say continue.');
+    }
+  }
+
+  /* ---- the mandatory stops ------------------------------------------
+     Refuse the forward move, and hand back what to TALK ABOUT instead. A
+     refusal with nothing to say just gets asked again a second later. */
+  const waitMs = Stop.msLeft();
+  if (waitMs > 0) {
+    const part = Stop.part || Stop.lastPartDone;
+    const scored = Journey.completed[[0, 6, 9, 12][part]];
+    const score = scored ? scored.score + ' out of ' + scored.of : null;
+
+    if (Stop.kind === 'panel') {
+      return Promise.resolve(
+        'STAY HERE. They have only just finished Part ' + part + '. The part-complete ' +
+        'panel is on screen' + (score ? ' and they scored ' + score : '') + '. ' +
+        'Tell them the score and what it means, warmly and in one or two sentences. ' +
+        'If it was a low score, say the retake is genuinely worth it. Then ask them ' +
+        'to say "back to my route" when they are ready. Do NOT call advance again ' +
+        'until they say so.');
+    }
+    return Promise.resolve(
+      'STAY HERE — this is the route screen, and it is a deliberate pause. About ' +
+      Stop.secsLeft() + ' seconds of it left. This is where Part ' + part +
+      ' gets landed properly, so do not rush them onward. Do all of this, in order, ' +
+      'and take your time over it:\n' +
+      '1. ' + (WRAPUP[part] || 'Sum up what they just covered in one sentence.') + '\n' +
+      '2. Then say what the three cards on screen show — what is done, what has ' +
+      'just unlocked, what is still locked.\n' +
+      '3. Then ask if they have any questions at all about what they have covered ' +
+      'so far, and WAIT for a real answer.\n' +
+      'Only when they say they are ready to go on do you call advance again.');
+  }
+
+  /* The marked board: nothing to press, because the next step is the panel
+     the deck no longer opens by itself. */
+  if (st.scene === 6 && st.sortSubmitted) {
+    const panel = win.document.getElementById('modres');
+    if (!panel || panel.hidden) {
+      try { deckVoice().showResult(1); } catch (e) {}
+      return settleThenBrief('Their score panel is open now.', true);
+    }
+  }
+
+  const doc = win.document;
+  const btn = forwardControl(doc, st);
+  if (!btn) {
+    /* Refusing is the feature. An unfinished activity is the one place the
+       course must not move, and saying WHY turns a dead end into an
+       instruction. */
+    if (st.scene === 6)
+      return Promise.resolve('BLOCKED — the sorting board is not finished. ' + readProgress() +
+        ' Tell them what is still to place; do not move on.');
+    if (st.scene === 9)
+      return Promise.resolve('BLOCKED — the walk is not finished. ' + readProgress() +
+        ' Tell them which statement is outstanding; do not move on.');
+    if (st.scene === 12)
+      return Promise.resolve('BLOCKED — the knowledge check is not finished. ' + readProgress() +
+        ' Ask them for their answer to the question on screen; do not move on.');
+    return Promise.resolve('There is nothing to move on to from here. ' + readProgress());
+  }
+  const label = (btn.textContent || 'Continue').replace(/\s+/g, ' ').trim().slice(0, 40);
+  const wasSubmit = btn.id === 'btn-submit';
+  btn.click();
+  currentSection = null;
+
+  /* Never read the screen in the same tick as turning it — the transition is
+     animated, so an immediate read reports the screen being LEFT. Wait for the
+     swap to settle, then describe where they actually are. */
+  return new Promise(resolve => {
+    setTimeout(() => {
+      try {
+        const now = deckState(win) || st;
+
+        /* The walk never changes scene — "continue" reveals the next statement
+           in place. So this has to be answered BEFORE the did-anything-move
+           check, which would otherwise call a real move a no-op. */
+        if (now.scene === 9) {
+          try {
+            const stem = (win.document.querySelector('#rules-stem') || {}).textContent || '';
+            const count = (win.document.querySelector('#rules-count') || {}).textContent || '';
+            if (stem.trim()) {
+              resolve(speakable([
+                'The next statement is now on screen. It reads. ' + stem,
+                count ? count + ' of six judged so far' : '',
+                'Read it to them and ask true or false. Nothing else'
+              ].filter(Boolean)));
+              return;
+            }
+          } catch (e) {}
+        }
+
+        /* Tell the truth when nothing moved. Reporting a move that did not
+           happen is how the tutor ends up teaching the wrong screen. */
+        if (now.scene === st.scene && !/submit|start the walk|open now/i.test(label)) {
+          resolve('That did not move anything — they are still on the same screen. ' +
+                  briefFor(win.document, now));
+          return;
+        }
+        let extra = '';
+        /* After marking, name the ones they got wrong. The score alone tells
+           the learner they lost two marks and nothing about which, and the
+           reasoning is the entire point of the activity. */
+        if (wasSubmit) {
+          try {
+            const wrong = [].slice.call(win.document.querySelectorAll('.zone.is-wrong .sit'))
+              .map(n => n.textContent.replace(/^\s*Situation\s*/, '').trim());
+            const score = (deckState(win) || {}).sortScore || 0;
+            const rec = Best.record(1, score, 6);
+            renderJourney();
+
+            extra = wrong.length
+              ? ' THEY GOT THESE WRONG. ' + wrong.join('. ') +
+                '. Go through each of those, one at a time, and say why it belongs the ' +
+                'other way round. Do this BEFORE you talk about the score or what is next.'
+              : ' They got every one right. Say so.';
+
+            /* More than two wrong is not a slip, it is the point being missed.
+               Recommend the retake plainly rather than waving them onward, but
+               do not force it. The score is kept either way, so coming back to
+               beat it later is a real option and worth saying out loud. */
+            if (wrong.length > 2) {
+              extra += ' THEY GOT ' + wrong.length + ' OF SIX WRONG. That is more than a ' +
+                'slip. Recommend taking this part again NOW, warmly and without making a ' +
+                'thing of it, and say the reasoning is what matters rather than the number. ' +
+                'They say "take it again" or "back to my route". Tell them their score is ' +
+                'saved either way, so they can come back and beat it later if they would ' +
+                'rather press on now.';
+            } else if (rec.previous !== null) {
+              extra += rec.improved
+                ? ' They beat their previous best of ' + rec.previous + '. Say so, briefly.'
+                : ' Their best on this part is still ' + rec.previous + '. Mention it only if it helps.';
+            }
+          } catch (e) {}
+        }
+        /* Submit leaves the MARKED BOARD on screen, green and red, so the
+           learner can see what they got wrong while it is explained. The
+           panel comes next, when they say they are ready. */
+        if (wasSubmit) {
+          resolve(speakable([
+            'Submitted' + extra,
+            'The board is marked on screen now, green for right and red for wrong. ' +
+            'Talk them through it while they can SEE it',
+            'When they say continue, call advance again and their score panel will open'
+          ]));
+          return;
+        }
+        const brief = briefFor(win.document, now);
+        Reveal.begin();
+        resolve('Moved on.' + extra + ' ' + brief);
+      } catch (e) {
+        resolve('Moved on. Call get_progress to see where that landed.');
+      }
+    }, 1400);
+  });
+}
+
+/* ------------------------------------------------------------------------
+   EVERY MOVE WAITS, THEN DESCRIBES WHERE IT LANDED
+
+   advance() already did this. goBack, show_section and retake_part did not —
+   they returned the instant they clicked, and the page turn is ANIMATED, so
+   the agent's follow-up get_progress read the screen being LEFT. Observed
+   live: the learner asked to go back from the activity brief, the deck
+   landed on "Three words, three different jobs", and the tutor cheerfully
+   announced they were back at the brief looking at six situations.
+
+   Same trap as before, same fix: wait out the transition, then hand back the
+   real screen — so no follow-up read is needed, and none can be stale.
+   ---------------------------------------------------------------------- */
+/* Panels are modal overlays with their own lifecycle: only their own buttons
+   hide them. So a show_section straight off the part-complete panel turned the
+   deck to the route screen and left "Nicely done" sitting on top of it — the
+   tutor correctly describing a route screen the learner could not see. Any
+   navigation closes them. */
+function closePanels() {
+  try {
+    const doc = deckFrame.contentWindow.document;
+    ['#modres', '#kc-verdict'].forEach(sel => {
+      const el = doc.querySelector(sel);
+      if (el && !el.hidden) el.hidden = true;
+    });
+  } catch (e) {}
+}
+
+/* ------------------------------------------------------------------------
+   AN ACTIVITY YOU WALK BACK INTO MUST BE READY TO TAKE AGAIN
+
+   Going back into a finished activity left it exactly as it was abandoned:
+   the knowledge check sitting on the last question with every option already
+   disabled. There is nothing to press and nothing to say, so the tutor asked
+   for an answer, the deck refused it, and both of them were stuck on a
+   question that had already been answered.
+
+   Re-entering a completed activity therefore rebuilds it. The score is not
+   lost by doing so: it is already banked in Journey and in Best the moment
+   the activity finished, which is exactly why a retake is safe to offer.
+   Returns a sentence for the tutor when it acted, so she can say what
+   happened rather than discovering a reset board mid-thought.
+   ---------------------------------------------------------------------- */
+function freshenActivity(win, st) {
+  if (!win || !st || ACTIVITY_SCENES.indexOf(st.scene) === -1) return '';
+  try {
+    if (st.scene === 6 && st.sortSubmitted && typeof win.buildSort === 'function') {
+      win.buildSort();
+      return ' The sorting board has been reset to the first card so they can take it ' +
+             'again. Their score is saved. Tell them it is ready from the top.';
+    }
+    if (st.scene === 12 && st.quizDone && typeof win.buildQuiz === 'function') {
+      win.buildQuiz();
+      return ' The knowledge check has been reset to question one so they can take it ' +
+             'again. Their score is saved. Read them question one.';
+    }
+    if (st.scene === 9 && st.rulesDone && typeof win.retakePart === 'function') {
+      win.retakePart(2);
+      return ' The walk has been reset to the first statement so they can take it again. ' +
+             'Their score is saved. Read them the first statement.';
+    }
+  } catch (e) {}
+  return '';
+}
+
+function settleThenBrief(prefix, keepPanels) {
+  /* closePanels exists because a navigation used to leave a modal sitting over
+     the screen it moved to. It must not fire when the step we just took WAS
+     opening a panel — which it did, shutting the score panel a frame after it
+     appeared. */
+  if (!keepPanels) closePanels();
+  const win = deckFrame.contentWindow;
+  return new Promise(resolve => {
+    setTimeout(() => {
+      try {
+        const now = deckState(win);
+        if (!now) { resolve(prefix + ' Call get_progress to see where that landed.'); return; }
+        /* Before describing it: if they have walked back into an activity
+           they already finished, put it back to its first question. */
+        const reset = freshenActivity(win, now);
+        const brief = briefFor(win.document, deckState(win) || now);
+        Reveal.begin();          // hide it; the tutor's voice brings it back in
+        resolve(prefix + reset + ' ' + brief);
+      } catch (e) {
+        resolve(prefix + ' Call get_progress to see where that landed.');
+      }
+    }, 1400);
+  });
+}
+
+/* The "Where you are" strip in the rail numbers every screen 1-15, so the
+   learner can name one: "take me back to four". That is the whole replacement
+   for the back and forward arrows, which are gone — a click on them moved the
+   deck and told the tutor nothing. */
+/* "Start again" from the end. The deck has a retry that resets all three
+   parts and routes back through the hub; without exposing it the only way to
+   retake the course was to reload the page. */
+function startAgain() {
+  try {
+    const win = deckFrame.contentWindow;
+    const btn = win.document.getElementById('btn-retry');
+    if (!btn) return 'There is no start-again on this screen.';
+    btn.click();
+    Stop.clear(); Stop.routeServed = 0;
+    Reveal.heardInFull = {};
+    return settleThenBrief('The whole module is reset and they are back at the route screen.');
+  } catch (e) { return 'Could not start the module again.'; }
+}
+
+function goToScreen(n) {
+  const win = deckFrame.contentWindow;
+  const st = deckState(win);
+  if (!win || !st) return 'The module is not ready yet.';
+  n = Math.round(Number(n));
+  if (!(n >= 1 && n <= 15)) return 'There are only 15 screens; ' + n + ' is not one of them.';
+  if (n === st.scene) return 'They are already on screen ' + n + '. ' + briefFor(win.document, st);
+  try {
+    if (typeof win.goto === 'function' && !st.busy) win.goto(n);
+    else win.__deck.goto(n);
+  } catch (e) { return 'Could not get to screen ' + n + '.'; }
+  currentSection = null;
+  Stop.clear();
+  return settleThenBrief('Now on screen ' + n + '.');
+}
+
+function goBack() {
+  const v = deckVoice();
+  if (!v) return 'The module is not ready yet.';
+  if (!v.back()) return 'There is no screen behind this one — they are at the start.';
+  currentSection = null;
+  /* Going back un-does a completed stop: if they step off the route screen
+     the pause belongs to that visit, not to wherever they have gone. */
+  Stop.clear();
+  return settleThenBrief('Stepped back one screen.');
+}
+
+function retakePart(part) {
+  try {
+    const win = deckFrame.contentWindow;
+    if (!win || typeof win.retakePart !== 'function') return 'The module is not ready yet.';
+    win.retakePart(part);
+    currentSection = null;
+    Stop.clear();
+    Stop.routeServed = 0;
+    return settleThenBrief('Part ' + part + ' is cleared and its card is lit on the route screen.');
+  } catch (e) { return 'That part could not be restarted.'; }
+}
+
+/* Put the activity back to the start. The tutor claimed it had "refreshed the
+   screen" when it had no way to — now it does. These are the deck's own
+   rebuild functions, which are plain function declarations and so DO reach
+   window, unlike its const bindings. */
+function restartActivity() {
+  const win = deckFrame.contentWindow;
+  const st = deckState(win);
+  if (!win || !st) return 'The module is not ready yet.';
+  try {
+    if (st.scene === 6 && typeof win.buildSort === 'function') {
+      win.buildSort(); return 'The sorting board is cleared and back to the first card.';
+    }
+    if (st.scene === 12 && typeof win.buildQuiz === 'function') {
+      win.buildQuiz(); return 'The knowledge check is back at question one.';
+    }
+    if (st.scene === 9 && typeof win.retakePart === 'function') {
+      win.retakePart(2); return 'The walk is reset to the first statement.';
+    }
+    return 'There is no activity on this screen to reset.';
+  } catch (e) { return 'Could not reset the activity.'; }
+}
+
+function showSection(name) {
+  const target = SECTIONS[name];
+  if (!target) return false;
+  if (currentSection === name) return true;
+
+  const win = deckFrame.contentWindow;
+  if (!win || typeof win.goto !== 'function') return false;
+
+  try {
+    const st = deckState(win);
+    /* A transition in flight refuses the next goto, so swap directly. */
+    if (st && st.busy && win.__deck) win.__deck.goto(target.scene);
+    else win.goto(target.scene);
+    /* If the transition was refused for any reason, force the swap. */
+    setTimeout(() => {
+      try {
+        const now = deckState(win);
+        if (now && now.scene !== target.scene && win.__deck) win.__deck.goto(target.scene);
+      } catch (e) {}
+    }, 1200);
+  } catch (e) { return false; }
+
+  currentSection = name;
+  tagEl.textContent = target.label;
+  tagEl.classList.add('is-driven');
+  addLine('move', '→ ' + target.label);
+  return true;
+}
+
+/* The deck narrates itself. With a tutor talking, that is two voices at once,
+   so the deck's narration is switched off the moment it is under tutor
+   control — and left alone otherwise, so the module still works on its own. */
+function muteDeckNarration() {
+  try {
+    /* `win.Voice.setOn(false)` reads like the obvious way and does NOTHING —
+       Voice is a script-scope const, so win.Voice is undefined and the guard
+       around it passes quietly. The result is the deck narrating underneath
+       the tutor: two voices at once. The deck's narration button is real DOM,
+       so that is the handle, and aria-pressed tells "already off" from "needs
+       a press" instead of toggling blind. */
+    const doc = deckFrame.contentWindow.document;
+    const btn = doc.getElementById('btn-audio');
+    if (!btn) return false;
+    if (btn.getAttribute('aria-pressed') === 'true') btn.click();
+    return btn.getAttribute('aria-pressed') === 'false';
+  } catch (e) { return false; }
+}
+
+/* ---------- base64 <-> pcm --------------------------------------------- */
+function b64ToInt16(b64) {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Int16Array(bytes.buffer);
+}
+function int16ToB64(int16) {
+  /* byteOffset and byteLength, not just .buffer.
+
+     A TypedArray is a VIEW. `new Uint8Array(view.buffer)` throws the view away
+     and takes the whole underlying allocation — which was harmless while every
+     caller passed a freshly allocated array from the microphone, and became a
+     real fault the moment one passed a subarray: each 20ms frame of a spoken
+     clip would have carried the entire clip behind it. */
+  const bytes = new Uint8Array(int16.buffer, int16.byteOffset, int16.byteLength);
+  let bin = '';
+  const STEP = 0x8000;          // apply() blows the stack on a long buffer
+  for (let i = 0; i < bytes.length; i += STEP) {
+    bin += String.fromCharCode.apply(null, bytes.subarray(i, i + STEP));
+  }
+  return btoa(bin);
+}
+
+/* ---------- playing the tutor's voice ----------------------------------
+   Chunks arrive faster than real time, so each is scheduled to start where
+   the last finished. Playing on arrival overlaps them into noise.
+   ---------------------------------------------------------------------- */
+function playChunk(int16) {
+  if (!outCtx) return;
+  const buf = outCtx.createBuffer(1, int16.length, RATE);
+  const ch = buf.getChannelData(0);
+  for (let i = 0; i < int16.length; i++) ch[i] = int16[i] / 32768;
+
+  const src = outCtx.createBufferSource();
+  src.buffer = buf;
+  src.connect(outCtx.destination);
+
+  const now = outCtx.currentTime;
+  if (nextPlayAt < now) { nextPlayAt = now + 0.03; Speech.startAt = nextPlayAt; }
+  src.start(nextPlayAt);
+  nextPlayAt += buf.duration;
+  Speech.audioSec += buf.duration;      // total speech received for this reply
+
+  scheduled.push(src);
+  src.onended = () => { scheduled = scheduled.filter(s => s !== src); };
+}
+function flushPlayback() {
+  scheduled.forEach(s => { try { s.stop(); } catch (e) {} });
+  scheduled = [];
+  nextPlayAt = 0;
+  Speech.reset();
+}
+
+/* ---------- microphone --------------------------------------------------
+   AudioWorklet, not MediaRecorder: MediaRecorder returns encoded webm/opus
+   and this API wants raw PCM frames. Built from a Blob to keep one file.
+   ---------------------------------------------------------------------- */
+const WORKLET_SRC = `
+class Tap extends AudioWorkletProcessor {
+  process(inputs) {
+    const ch = inputs[0] && inputs[0][0];
+    if (ch && ch.length) this.port.postMessage(new Float32Array(ch));
+    return true;
+  }
+}
+registerProcessor('tap', Tap);
+`;
+
+function downsample(input, from, to) {
+  if (from === to) return input;
+  const ratio = from / to;
+  const out = new Float32Array(Math.round(input.length / ratio));
+  for (let i = 0; i < out.length; i++) {
+    const start = Math.floor(i * ratio);
+    const end = Math.min(input.length, Math.floor((i + 1) * ratio));
+    let sum = 0, n = 0;
+    for (let j = start; j < end; j++) { sum += input[j]; n++; }
+    out[i] = n ? sum / n : 0;
+  }
+  return out;
+}
+
+async function startMic() {
+  micStream = await navigator.mediaDevices.getUserMedia({
+    audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true }
+  });
+
+  try { micCtx = new AudioContext({ sampleRate: RATE }); }
+  catch (e) { micCtx = new AudioContext(); }
+  if (micCtx.state === 'suspended') await micCtx.resume();
+
+  const url = URL.createObjectURL(new Blob([WORKLET_SRC], { type: 'application/javascript' }));
+  await micCtx.audioWorklet.addModule(url);
+  URL.revokeObjectURL(url);
+
+  const src = micCtx.createMediaStreamSource(micStream);
+  micNode = new AudioWorkletNode(micCtx, 'tap');
+
+  micNode.port.onmessage = e => {
+    if (!ready || !ws || ws.readyState !== WebSocket.OPEN) return;
+    const f32 = downsample(e.data, micCtx.sampleRate, RATE);
+    const i16 = new Int16Array(f32.length);
+    for (let i = 0; i < f32.length; i++) {
+      const s = Math.max(-1, Math.min(1, f32[i]));
+      i16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+    }
+    ws.send(JSON.stringify({ type: 'input.audio', audio: int16ToB64(i16) }));
+  };
+
+  src.connect(micNode);
+  /* Not connected to destination — that would echo the learner at themselves. */
+}
+
+/* ---------- the agent turning the page ----------------------------------
+   Pulled out of the socket handler so it can be exercised without a live call.
+
+   OBSERVED on a live session — and it matches NEITHER doc page:
+
+     {"type":"tool.call","call_id":"chatcmpl-tool-bb32…",
+      "name":"show_section","arguments":{"section":"part1"}}
+
+   Flat, with `arguments`. The tools guide says it is nested under `tool` with
+   `parameters`; the websocket spec says flat with `call_id`. Reality is flat
+   with `arguments` and `call_id`. The reads below cover all three spellings
+   because the docs cannot be trusted here, and the reply is sent in both
+   documented shapes for the same reason — extra JSON fields are ignored, a
+   missing one leaves the agent waiting forever.
+   ------------------------------------------------------------------------ */
+function handleToolCall(msg) {
+  const t = msg.tool || msg;
+  const name = t.name;
+  const args = t.parameters || t.arguments || {};
+  const callId = t.call_id || msg.call_id;
+
+  let result;
+  if (name === 'show_section') {
+    /* Deliberately NOT readProgress() here. The page turn is animated, so
+       reading the screen on this tick reports the screen we are LEAVING —
+       handing the tutor a stale fact is what caused it to discuss a card the
+       learner had not reached. It names the destination instead, and the
+       prompt tells it to call get_progress before discussing an item. */
+    const sec = SECTIONS[args.section];
+    if (showSection(args.section)) {
+      Stop.clear();
+      /* Same as every other move: wait for the page turn, then describe what
+         actually arrived. Naming the destination from the table was safe but
+         gave the tutor no words to read, so it improvised over a screen it
+         had not seen. */
+      result = settleThenBrief('Now showing: ' + sec.label + '.');
+    } else {
+      result = 'Could not show ' + args.section;
+    }
+  } else if (name === 'get_progress') {
+    result = readProgress();
+  } else if (name === 'answer_card') {
+    result = answerCard(args.side);
+  } else if (name === 'answer_statement') {
+    result = answerStatement(args.verdict);
+  } else if (name === 'answer_question') {
+    result = answerQuestion(args.letter);
+  } else if (name === 'advance') {
+    result = advance();
+  } else if (name === 'start_again') {
+    result = startAgain();
+  } else if (name === 'go_to_screen') {
+    result = goToScreen(args.screen);
+  } else if (name === 'go_back') {
+    result = goBack();
+  } else if (name === 'retake_part') {
+    result = retakePart(args.part);
+  } else if (name === 'restart_activity') {
+    result = restartActivity();
+  } else {
+    result = 'Unknown tool: ' + name;
+  }
+  const detail = args.section || args.side || args.verdict || args.letter || args.part;
+  addLine('move', '· ' + name + (detail ? ' → ' + detail : ''));
+
+  /* advance() has to wait out the page transition before it can report where
+     the learner landed, so a result may be a promise. Everything else resolves
+     immediately and takes the same path. */
+  /* One gate for everything the agent is ever handed.
+
+     The agent mirrors the punctuation it is given, and that punctuation is
+     eventually SPOKEN — which is how a full stop came out of the speakers as
+     the word "dot". Em-dashes and semicolons were the worst offenders, and
+     most of them were in MY OWN instruction strings rather than in her copy.
+     Cleaning at the source kept missing new ones, so it is done here, once,
+     where every result passes. */
+  /* STRIP THE WHOLE CLASS, not a list of three.
+
+     Whitelisting characters one at a time kept missing the next one: the
+     middle dot was caught, then arrows survived eighty-three times in the
+     journey line. Sixteen sentence shapes and characters were put through
+     tools/dot-loopback.js and none of them made the engine say "dot" — so
+     rather than keep guessing which mark is to blame, nothing but plain
+     ASCII prose is sent at all. The agent cannot voice a character it was
+     never given.
+
+     Typographic marks that carry meaning are TRANSLATED, not deleted, so the
+     sense survives: a dash becomes a sentence break, an arrow becomes the
+     word "then", a curly quote becomes a straight one. Everything else
+     outside printable ASCII goes. */
+  const forSpeech = v => {
+    if (typeof v !== 'string') return v;
+    return v
+      .replace(/\s*[\u2013\u2014]\s*/g, '. ')       // en/em dash -> sentence break
+      .replace(/\s*[\u2192\u2794\u27a1]\s*/g, ' then ')  // arrows -> the word
+      .replace(/[\u2018\u2019\u201b]/g, "'")         // curly single quotes
+      .replace(/[\u201c\u201d\u201f]/g, '"')         // curly double quotes
+      .replace(/\u2026/g, '.')                       // ellipsis
+      .replace(/\s*;\s*/g, '. ')                     // semicolon -> full stop
+      .replace(/[\u00b7\u2022\u2023\u25aa|]/g, ' ')  // separators
+      .replace(/([a-z])([A-Z])/g, '$1 $2')            // glued block elements
+      .replace(/[^\x20-\x7e]/g, ' ')                  // EVERYTHING else non-ASCII
+      .replace(/"+/g, '')                             // quotes are read by some voices
+      .replace(/([.!?])\s*\1+/g, '$1')
+      .replace(/[ \t]+/g, ' ')
+      .replace(/ +([.,!?])/g, '$1')
+      /* A dash turned into a full stop leaves the next word lowercase, which
+         reads as a fragment. Put the capital back. */
+      .replace(/([.!?]\s+)([a-z])/g, (m, stop, c) => stop + c.toUpperCase())
+      .trim();
+  };
+
+  const send = rawValue => {
+    const value = forSpeech(rawValue);
+    const reply = {
+      type: 'tool.result',
+      tool: { call_id: callId, result: value },
+      call_id: callId,
+      result: value
+    };
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(reply));
+    return reply;
+  };
+  if (result && typeof result.then === 'function') { result.then(send); return null; }
+  return send(result);
+}
+
+/* ---------- the session ------------------------------------------------- */
+async function getToken() {
+  const r = await fetch('/api/token');
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.fix || data.error || `Token request failed (${r.status})`);
+  return data.token;
+}
+
+async function connect() {
+  clearError();
+  setStatus('Connecting', 'connecting');
+  micBtn.disabled = true;
+  stopping = false;
+
+  let token;
+  try { token = await getToken(); }
+  catch (e) {
+    showError(String(e.message || e));
+    setStatus('Disconnected', 'error');
+    micBtn.disabled = false;
+    /* Leave the door standing and usable. A disabled circle on a page whose
+       only control is that circle is a dead end with the reason hidden in a
+       rail the learner cannot see past. */
+    doorGo.disabled = false;
+    document.getElementById('door-go-label').textContent = 'Try again';
+    door.appendChild(errEl);
+    errEl.hidden = false;
+    return;
+  }
+
+  outCtx = new AudioContext({ sampleRate: RATE });
+  if (outCtx.state === 'suspended') await outCtx.resume();
+
+  ws = new WebSocket(`${WS_URL}?token=${encodeURIComponent(token)}`);
+
+  ws.onopen = () => {
+    ws.send(JSON.stringify({
+      type: 'session.update',
+      session: {
+        system_prompt: plainAscii(SYSTEM_PROMPT),
+        greeting: plainAscii(GREETING),
+        tools: TOOLS,
+        input: {
+          format: { encoding: 'audio/pcm' },
+          /* Pin the language. Left unset, transcription auto-detects across
+             every supported language, and short single words are exactly
+             what it gets wrong — observed live: the learner said "go" and it
+             came back as the Chinese 走, so the tutor apologised at a word it
+             had never been given. Constraining the set is the documented fix.
+             It binds when the speech connection opens, so it must be in the
+             first session.update, not a later one. */
+          language_codes: ['en'],
+          turn_detection: { interrupt_response: true }
+        },
+        output: {
+          voice: 'anna',
+          format: { encoding: 'audio/pcm' }
+        }
+      }
+    }));
+  };
+
+  ws.onmessage = async ev => {
+    let msg;
+    try { msg = JSON.parse(ev.data); } catch (e) { return; }
+
+    switch (msg.type) {
+      case 'session.ready':
+        ready = true;
+        setStatus('Connected', 'connected');
+        micBtn.textContent = 'Listening…';
+        micBtn.classList.add('is-live');
+        stopBtn.disabled = false;
+        muteDeckNarration();
+        showSection('welcome');
+        onDoorOpen();          // the page is only worth revealing once it talks
+        watchJourney();
+        /* Begin is grey until there is someone to hear you say it. */
+        try { deckFrame.contentWindow.document.documentElement.classList.add('tutor-live'); }
+        catch (e) {}
+        /* Hold scene entrances for the whole session, so a slide is held from
+           the instant it mounts instead of loading and then being hidden. */
+        try { deckVoice().armHold(true); } catch (e) {}
+        try { await startMic(); }
+        catch (e) {
+          showError('Could not open the microphone: ' + (e.message || e) +
+                    ' Allow microphone access and press Start again.');
+          teardown();
+        }
+        break;
+
+      case 'transcript.user.delta':
+        if (!partialEl) partialEl = addLine('you', msg.text || '', true);
+        else partialEl.lastChild.nodeValue = msg.text || '';
+        break;
+      case 'transcript.user':
+        if (partialEl) { partialEl.remove(); partialEl = null; }
+        if (msg.text) addLine('you', msg.text);
+        break;
+
+      case 'transcript.agent.delta':
+        /* The agent's own words, as it says them — this is what drives the
+           entrances. Deltas carry the whole reply so far, same as the user
+           ones, but accumulate defensively in case that ever changes. */
+        agentSaid = (msg.text && msg.text.length >= agentSaid.length)
+                  ? msg.text : (agentSaid + (msg.text || ''));
+        Reveal.heard(agentSaid);
+        break;
+
+      case 'transcript.agent':
+        if (msg.text) {
+          /* Keep the EXACT text the speech engine was given. When the voice
+             says a word the text does not contain, the fault is downstream of
+             us and no amount of cleaning here will touch it. */
+          /* Timestamped, so an utterance can be found by when it happened
+             rather than by catching it in the act. Seventeen reproduction
+             attempts failed to make the engine say "dot", which means the
+             trigger is something only a real session produces — so the real
+             session has to keep the evidence itself. */
+          (window.__said = window.__said || []).push({
+            at: new Date().toLocaleTimeString(),
+            scene: (deckState(deckFrame.contentWindow) || {}).scene,
+            text: msg.text
+          });
+          if (dbgBtn) dbgBtn.hidden = false;
+          addLine('tutor', msg.text);
+          Reveal.heard(msg.text);
+          agentSaid = '';
+          /* The phrase-matching net is GONE. It navigated on whatever the
+             agent happened to say, which was insurance when tool calls were
+             unproven — and is now the one thing that can move the course
+             without the learner asking. That is the rule this whole build
+             exists to keep. */
+        }
+        break;
+
+      case 'reply.started':
+        /* THE LOOP BUG. Speech.audioSec accumulated across every reply and was
+           only cleared on an interrupt, so from the second reply onward the
+           clock believed there were minutes of audio still to play.
+           Speech.done() then never returned true, Reveal.finish(true) never
+           ran, the screen was never marked heard, and advance refused for ever
+           — the tutor apologising for "a loop" it could not get out of.
+           A reply is a fresh clock. */
+        Speech.reset();
+        break;
+
+      case 'reply.audio':
+        if (msg.data) playChunk(b64ToInt16(msg.data));
+        break;
+
+      /* The agent turning the page. Two doc pages disagree on where call_id
+         and result live, so send both spellings — a wrong shape just leaves
+         the agent waiting, and extra fields are ignored. */
+      case 'tool.call':
+        handleToolCall(msg);
+        break;
+
+      case 'input.speech.started':
+        flushPlayback();
+        break;
+      case 'reply.done':
+        Turn.close();
+        if (msg.status === 'interrupted') {
+          flushPlayback();
+          /* Talked over: this screen has NOT been heard out. */
+          Reveal.finish(false);
+        } else {
+          /* The words are done but the audio is still draining. Only mark the
+             screen heard once the voice has actually stopped. */
+          const settle = setInterval(() => {
+            if (!Speech.done()) return;
+            clearInterval(settle);
+            Reveal.finish(true);
+          }, 200);
+          /* A reply that never produced audio must still resolve, or the
+             screen locks exactly as it did before. */
+          setTimeout(() => {
+            clearInterval(settle);
+            if (!Reveal.heardInFull[Reveal.scene]) Reveal.finish(true);
+          }, 20000);
+        }
+        agentSaid = '';
+        break;
+
+      case 'error':
+        showError('AssemblyAI: ' + (msg.error || msg.message || 'unknown error'));
+        break;
+    }
+  };
+
+  ws.onerror = () => { /* onclose carries the actionable detail */ };
+
+  ws.onclose = ev => {
+    ready = false;
+    if (stopping) { setStatus('Disconnected'); return; }
+
+    /* 1006 is an abnormal close — most often a token already redeemed, or one
+       that expired before the socket opened. Tokens are single-use, so
+       recovery means minting a new one. One attempt, then hand it back. */
+    if (ev.code === 1006 && !connect._retried) {
+      connect._retried = true;
+      setStatus('Reconnecting', 'connecting');
+      teardownAudio();
+      setTimeout(connect, 400);
+      return;
+    }
+    connect._retried = false;
+    teardown();
+    if (ev.code !== 1000) {
+      showError(`Connection closed (${ev.code}${ev.reason ? ': ' + ev.reason : ''}). Press Start Learning to try again.`);
+    }
+  };
+}
+
+/* ---------- teardown ---------------------------------------------------- */
+function teardownAudio() {
+  flushPlayback();
+  if (micNode) { try { micNode.port.onmessage = null; micNode.disconnect(); } catch (e) {} micNode = null; }
+  if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+  if (micCtx) { try { micCtx.close(); } catch (e) {} micCtx = null; }
+  if (outCtx) { try { outCtx.close(); } catch (e) {} outCtx = null; }
+}
+function teardown() {
+  ready = false;
+  clearInterval(journeyTimer); journeyTimer = null;
+  Reveal.stop();
+  teardownAudio();
+  if (ws) { try { ws.close(); } catch (e) {} ws = null; }
+  if (typeof cueEl !== 'undefined' && cueEl) { cueEl.hidden = true; lastCue = ''; }
+  if (typeof journeyEl !== 'undefined' && journeyEl) journeyEl.hidden = true;
+  if (typeof quietEl !== 'undefined' && quietEl) { quietEl.hidden = true; lastQuiet = ''; }
+  if (typeof dbgBtn !== 'undefined' && dbgBtn) dbgBtn.hidden = true;
+  try { deckFrame.contentWindow.document.documentElement.classList.remove('tutor-live'); }
+  catch (e) {}
+  /* Hand entrances back to the deck, or a scene mounted after the session
+     ends stays blank forever. */
+  try { const v = deckVoice(); v.armHold(false); v.showAll(); } catch (e) {}
+  micBtn.disabled = false;
+  micBtn.textContent = 'Start Learning';
+  micBtn.classList.remove('is-live');
+  stopBtn.disabled = true;
+  tagEl.classList.remove('is-driven');
+  setStatus('Disconnected');
+}
+
+/* ---------- wiring ------------------------------------------------------ */
+/* ------------------------------------------------------------------------
+   THE FRONT DOOR
+
+   One control on the whole page. Two blue things at once — the deck's own
+   "Begin" behind the glass and "Start Learning" in the rail — meant the
+   learner had to work out which one started the thing they wanted, and the
+   answer was "both, in an order nobody explained".
+
+   She asked for the tutor to SAY "press the blue circle", repeating every
+   thirty seconds. It cannot, and no amount of code will change that: every
+   browser refuses audio until the page has been clicked, so there is no
+   sound available before the first press — that is the same rule that makes
+   this button necessary in the first place. The reminder is therefore given
+   in the one channel that is open, which is light: the circle breathes, and
+   a line appears under it if the page is left sitting. From the moment it is
+   pressed the tutor has a voice and uses it.
+   ---------------------------------------------------------------------- */
+const door = document.getElementById('door');
+const doorGo = document.getElementById('door-go');
+const doorAgain = document.getElementById('door-again');
+
+let doorNudge = null;
+function startDoorNudge() {
+  let shown = false;
+  doorNudge = setInterval(() => {
+    shown = !shown;
+    doorAgain.classList.toggle('is-on', shown);
+  }, 15000);
+}
+startDoorNudge();
+
+doorGo.addEventListener('click', () => {
+  if (ws) return;
+  clearInterval(doorNudge);
+  doorGo.disabled = true;
+  document.getElementById('door-go-label').textContent = 'Starting…';
+  connect._retried = false;
+  connect();
+  /* The door lifts on session.ready, not here — opening it onto a silent
+     page would hand the learner a screen with nobody talking and nothing
+     explaining why. See onReady(). */
+});
+
+function onDoorOpen() {
+  door.classList.add('is-open');
+  setTimeout(() => { door.hidden = true; }, 600);
+}
+
+micBtn.addEventListener('click', () => {
+  if (ws) return;
+  connect._retried = false;
+  connect();
+});
+
+/* ------------------------------------------------------------------------
+   WHAT TO PRESS, ON SCREEN
+
+   The tutor can only speak on a turn — the API has four client messages and
+   none of them makes the agent talk unprompted. In practice that covers
+   almost everything, because the learner now ANSWERS out loud, and every
+   spoken answer — and every "continue" — is a turn. The one gap it cannot
+   cover is silence: a learner who says nothing hears nothing. So the screen
+   carries that one case, and it names what to SAY, not what to press.
+
+   So the screen carries that one case. It is not a nag — it names the button
+   that is actually live, and it says nothing at all while the learner is
+   mid-activity with something still to answer.
+   ---------------------------------------------------------------------- */
+const cueEl = document.getElementById('cue');
+let lastCue = '';
+
+/* ---- the "dot" capture ------------------------------------------------
+   JSON.stringify, not the raw string: it makes every non-obvious character
+   visible. A middle dot, a non-breaking space, a stray escape or a doubled
+   full stop all look identical in the transcript and different here. */
+const dbgBtn = document.getElementById('dbg');
+if (dbgBtn) dbgBtn.addEventListener('click', () => {
+  /* The WHOLE session, not the last three. JSON.stringify so every escape and
+     invisible character shows: a curly apostrophe, a non-breaking space and a
+     plain one are indistinguishable in the transcript and obvious here. */
+  const said = window.__said || [];
+  const dump = said.length
+    ? said.map(r => '[' + r.at + ' | screen ' + r.scene + '] ' + JSON.stringify(r.text)).join('\n\n')
+    : '(nothing said yet)';
+  const header = 'VOICE TUTOR SESSION LOG. ' + said.length + ' utterances.\n' +
+    'Tell Claude roughly WHEN you heard the fault and it will find the line.\n' +
+    '================================================================\n\n';
+  navigator.clipboard.writeText(header + dump).then(() => {
+    dbgBtn.textContent = 'Copied ' + said.length + ' lines. Paste to Claude.';
+    dbgBtn.classList.add('ok');
+    setTimeout(() => {
+      dbgBtn.textContent = 'Copy the session log';
+      dbgBtn.classList.remove('ok');
+    }, 3200);
+  }).catch(() => { dbgBtn.textContent = 'Could not copy'; });
+});
+
+const journeyEl = document.getElementById('journey');
+const journeyList = document.getElementById('journey-list');
+const ACT_NAME = { 6: 'Sort the situations', 9: 'Walk the rules', 12: 'Knowledge check' };
+
+/* ------------------------------------------------------------------------
+   A BUTTON THAT SPEAKS
+
+   The problem: the agent cannot be prompted. Four client messages exist and
+   none of them makes it talk. So a clicked step happened in silence, Ada
+   stayed on the question she last heard, and a learner could click all the
+   way to the end of the quiz with the tutor still at question one.
+
+   The way out was sitting in the list the whole time: `input.audio`. Sending
+   audio is how a learner talks to her. So a button does exactly that — it
+   plays a recording of the word into the microphone channel, and as far as
+   Ada is concerned the learner said it. She hears "continue", she answers,
+   she narrates the next screen. One path for both routes, again, rather than
+   a silent second one that drifts.
+
+   The clips are 24 kHz mono PCM, the format the socket already wants, made
+   with the system voice. They are fed in 20 ms frames with a tail of silence,
+   because turn detection needs the pause to know the sentence ended.
+   ---------------------------------------------------------------------- */
+const SAY_CLIPS = {};
+
+async function speakForLearner(name) {
+  if (!ws || ws.readyState !== WebSocket.OPEN || !micNode) return false;
+  try {
+    if (!SAY_CLIPS[name]) {
+      const res = await fetch('say/' + name + '.raw');
+      if (!res.ok) return false;
+      SAY_CLIPS[name] = new Int16Array(await res.arrayBuffer());
+    }
+    const pcm = SAY_CLIPS[name];
+
+    /* Whatever Ada is saying now is being talked over, exactly as it would be
+       if the learner had opened their mouth. */
+    flushPlayback();
+
+    /* Sent as fast as the socket takes them, not at 20ms of wall clock each.
+       Pacing to real time made a button press sit there for the best part of
+       two seconds before anything happened, which reads as the app hanging.
+       The server buffers the stream; it does not need to be fed in real time.
+       A yield every few frames keeps the main thread responsive. */
+    const FRAME = 480;                       // 20ms of audio at 24kHz
+    let sent = 0;
+    for (let i = 0; i < pcm.length; i += FRAME) {
+      const chunk = pcm.subarray(i, Math.min(i + FRAME, pcm.length));
+      ws.send(JSON.stringify({ type: 'input.audio', audio: int16ToB64(chunk) }));
+      if (++sent % 8 === 0) await new Promise(r => setTimeout(r, 0));
+    }
+    /* The trailing silence is what tells turn detection the sentence ended.
+       Without it she waits, politely, for a continuation that never comes. */
+    const silence = int16ToB64(new Int16Array(FRAME));
+    for (let i = 0; i < 40; i++) {
+      ws.send(JSON.stringify({ type: 'input.audio', audio: silence }));
+      if (i % 8 === 0) await new Promise(r => setTimeout(r, 0));
+    }
+    return true;
+  } catch (e) { return false; }
+}
+
+/* ------------------------------------------------------------------------
+   THE QUIET ROUTE
+
+   These mirror whatever the tutor has just asked the learner to SAY, and they
+   call the very same functions — so a click and a spoken word are the same
+   action, not two implementations of it.
+
+   The honest limitation, which the panel states on screen: the agent cannot
+   be made to speak. The API has four client messages and none of them prompts
+   it. So a clicked step happens silently; the tutor picks the thread up the
+   next time the learner says anything. Narration still works for every screen
+   the tutor opens itself. Anyone who clicks ALL the way through hears the
+   course start and then gets a silent, working module — which is better than
+   a course they cannot take at all.
+   ---------------------------------------------------------------------- */
+const quietEl = document.getElementById('quiet');
+const quietRow = document.getElementById('quiet-row');
+let lastQuiet = '';
+
+/* ------------------------------------------------------------------------
+   A CLICK IS A TURN, AND YOU CANNOT TAKE TWO AT ONCE
+
+   Observed on the knowledge check: the learner pressed A, then B, then C
+   faster than the tutor could answer. Each press flushed her audio and fed a
+   whole new turn into the socket, so the replies queued. The deck ran ahead
+   to the results panel while she was still reading out question two, and
+   everything after that read as the app being broken.
+
+   Speaking over her is fine — that is a real interruption and the API has
+   turn detection for it. A BUTTON is different: it is instant, it is
+   repeatable, and it gives no human signal that you are mid-sentence. So a
+   pressed turn holds the row until her reply lands. `inFlight` is cleared on
+   reply.done and on reply.started-without-a-press, and it has a ceiling so a
+   dropped reply can never strand the buttons.
+   ---------------------------------------------------------------------- */
+const Turn = {
+  inFlight: false,
+  timer: null,
+  CEILING_MS: 25000,
+  open() {
+    this.inFlight = true;
+    clearTimeout(this.timer);
+    /* A reply that never arrives must not leave the row dead for ever. */
+    this.timer = setTimeout(() => this.close(), this.CEILING_MS);
+    renderQuiet(true);
+  },
+  close() {
+    if (!this.inFlight) return;
+    this.inFlight = false;
+    clearTimeout(this.timer); this.timer = null;
+    renderQuiet(true);
+  }
+};
+
+function quietOptions(doc, st) {
+  const live = sel => {
+    const e = doc.querySelector(sel);
+    return e && !e.disabled && !e.hidden &&
+           (e.offsetParent !== null ||
+            doc.defaultView.getComputedStyle(e).position === 'fixed') ? e : null;
+  };
+
+  /* Every option is now a CLIP NAME, not a function. The button says the word
+     for you and Ada does the rest — so clicking and speaking end up in exactly
+     the same place, and she is never left behind on a screen you have already
+     left. */
+  const ch = doc.getElementById('chooser');
+  if (ch && !ch.hidden) return [{ t: 'Start the walk', say: 'startwalk', cls: 'is-go' }];
+
+  if (st.scene === 6 && doc.querySelector('#deck-stack .sit'))
+    return [{ t: 'Inclusive', say: 'inclusive', cls: 'is-yes' },
+            { t: 'Worth flagging', say: 'flag', cls: 'is-no' }];
+
+  if (st.scene === 9 && doc.querySelector('#rules-answers .gameans__btn:not([disabled])'))
+    return [{ t: 'True', say: 'true', cls: 'is-yes' },
+            { t: 'False', say: 'false', cls: 'is-no' }];
+
+  if (st.scene === 12 && !doc.querySelector('#qcard .opt[disabled]'))
+    return [].slice.call(doc.querySelectorAll('#qcard .opt'))
+      .map((o, i) => ({ t: 'ABC'[i], say: 'abc'[i], cls: 'is-yes' }));
+
+  if (live('#modres-retake') || live('#modres-go'))
+    return [{ t: 'Back to my route', say: 'route', cls: 'is-go' },
+            { t: 'Take it again', say: 'again', cls: 'is-no' }];
+
+  if (st.scene === 15)    return [{ t: 'Start again', say: 'startagain' }];
+  if (live('#btn-start')) return [{ t: 'Begin', say: 'begin', cls: 'is-go' }];
+  if (st.scene === 3)     return [{ t: 'Open it', say: 'openit', cls: 'is-go' }];
+  if (st.scene === 6 && st.sortSubmitted)
+                          return [{ t: 'Continue', say: 'continue', cls: 'is-go' }];
+  if (forwardControl(doc, st)) return [{ t: 'Continue', say: 'continue', cls: 'is-go' }];
+  return [];
+}
+
+function renderQuiet(force) {
+  if (!ready) { quietEl.hidden = true; return; }
+  let opts = [];
+  try {
+    const win = deckFrame.contentWindow, st = deckState(win);
+    if (st) opts = quietOptions(win.document, st);
+  } catch (e) {}
+  /* The gate is part of the signature, so the row is rebuilt when a turn
+     opens or closes and not only when the options themselves change. */
+  const sig = opts.map(o => o.t).join('|') + (Turn.inFlight ? '|WAIT' : '');
+  if (sig === lastQuiet && !force) return;
+  lastQuiet = sig;
+  quietRow.innerHTML = '';
+  opts.forEach(o => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'quiet__btn' + (o.cls ? ' ' + o.cls : '');
+    b.textContent = o.t;
+    /* Greyed, not hidden, while she is answering — a button that vanishes
+       under the cursor reads as a glitch, one that greys reads as "wait". */
+    b.disabled = Turn.inFlight;
+    b.title = Turn.inFlight ? 'Wait for your guide to finish' : '';
+    b.addEventListener('click', async () => {
+      if (Turn.inFlight) return;
+      b.disabled = true;
+      Turn.open();
+      const spoke = await speakForLearner(o.say);
+      if (!spoke) Turn.close();
+      /* If the clip could not be sent, press the deck's own control instead,
+         so the button is never simply dead. Every option used to carry its own
+         `go` function for this; when they all became clip names that fallback
+         quietly stopped existing, and a failed fetch (a clip missing from a
+         deploy) left a button that looked live and did nothing. The deck's
+         forward control is the one thing that is always there. Ada ends up
+         behind, but the learner is not stuck. */
+      if (!spoke) {
+        try {
+          const win = deckFrame.contentWindow, st = deckState(win);
+          const el = st && forwardControl(win.document, st);
+          if (el) {
+            el.click();
+            addLine('move', '\u00b7 clicked through (no voice)');
+            setTimeout(() => { try { deckVoice().showAll(); } catch (e) {} }, 1500);
+          } else {
+            addLine('move', '\u00b7 that button needs the voice session');
+          }
+        } catch (e) {}
+      }
+      b.disabled = false;
+      renderQuiet();
+    });
+    quietRow.appendChild(b);
+  });
+  quietEl.hidden = !opts.length;
+}
+
+function renderJourney() {
+  if (!journeyList) return;
+  const st = deckState(deckFrame.contentWindow);
+  const now = st ? st.scene : 0;
+  const been = {};
+  Journey.visits.forEach(v => { been[v.scene] = 1; });
+
+  let html = '';
+  for (let n = 1; n <= 15; n++) {
+    const cls = n === now ? 'is-now' : been[n] ? 'is-done' : 'is-todo';
+    const heard = Reveal.heardInFull[n] ? ' is-heard' : '';
+    const tip = 'Screen ' + n + (Reveal.heardInFull[n] ? ' — heard in full' : '');
+    html += '<li class="' + cls + heard + '" title="' + tip + '">' + n + '</li>';
+  }
+  const PART_OF = { 6: 1, 9: 2, 12: 3 };
+  const scores = Object.keys(Journey.completed).map(k => {
+    const c = Journey.completed[k];
+    const best = Best.get(PART_OF[k]);
+    const beat = best && best.score > c.score
+      ? ' <i>best ' + best.score + '</i>' : '';
+    return ACT_NAME[k] + ' <b>' + c.score + '/' + c.of + '</b>' + beat;
+  });
+  if (scores.length) html += '<p class="journey__score">' + scores.join('<br>') + '</p>';
+
+  journeyList.innerHTML = html;
+  journeyEl.hidden = !ready;
+}
+
+function refreshCue() {
+  if (!ready) { cueEl.hidden = true; return; }
+  /* A held screen must look held. Without this the learner says "continue",
+     nothing moves, and the only available reading is that it is broken. */
+  /* Still being talked through: say so, or a "continue" that does nothing
+     reads as a fault rather than a rule. */
+  const st0 = deckState(deckFrame.contentWindow);
+  if (st0 && !Reveal.heardInFull[st0.scene] && Reveal.items.length && !Speech.done()) {
+    const t = 'Listening — this screen unlocks once your guide has been through it.';
+    if (t !== lastCue) {
+      lastCue = t; cueEl.textContent = t;
+      cueEl.hidden = false; cueEl.classList.add('is-soft');
+    }
+    return;
+  }
+
+  const held = Stop.msLeft();
+  if (held > 0) {
+    const t = Stop.kind === 'route'
+      ? 'Take a moment here — ' + Stop.secsLeft() + 's. Your guide is talking you through what you just did.'
+      : 'Here are your results — have a look before you move on.';
+    if (t !== lastCue) {
+      lastCue = t; cueEl.textContent = t;
+      cueEl.hidden = false; cueEl.classList.remove('is-soft');
+    }
+    return;
+  }
+  let text = '';
+  try {
+    const win = deckFrame.contentWindow;
+    const st = deckState(win);
+    if (st) {
+      const doc = win.document;
+      const live = sel => {
+        const e = doc.querySelector(sel);
+        return e && !e.disabled && !e.hidden && e.offsetParent !== null ? e : null;
+      };
+      const ch = doc.getElementById('chooser');
+      if (ch && !ch.hidden)         text = 'Pick a character, then say "start the walk".';
+      else if (live('#modres-go'))  text = 'Say "back to my route" — or "take it again".';
+      else if (live('#btn-start'))  text = 'Say "begin" when you\'re ready.';
+      else if (st.scene === 6 && !st.sortSubmitted && live('#btn-submit'))
+                                    text = 'All six placed — say "submit" when you\'re ready.';
+      else if (live('#btn-qnext'))  text = 'Say "continue" when you\'re ready.';
+      else if (live('#rules-go'))   text = 'Say "continue" when you\'re ready.';
+      else if (st.scene === 14)     text = 'Say "continue" for your certificate.';
+      else if (st.scene === 15)     text = "That's the module finished. Say \"start again\" to go round once more.";
+      else if (st.scene === 3)      text = 'Say "open it" to start the part.';
+      else if (live('#btn-next'))   text = 'Say "continue" when you\'re ready.';
+      else if (st.scene === 6)      text = 'Say "Inclusive" or "Worth flagging".';
+      else if (st.scene === 9)      text = 'Say "True" or "False".';
+      else if (st.scene === 12)     text = 'Say "A", "B" or "C".';
+    }
+  } catch (e) {}
+  if (text === lastCue) return;
+  lastCue = text;
+  cueEl.textContent = text;
+  cueEl.hidden = !text;
+  cueEl.classList.toggle('is-soft', /^Say "(Inclusive|True|A)/.test(text));
+}
+setInterval(() => { refreshCue(); renderQuiet(); }, 900);
+
+stopBtn.addEventListener('click', () => {
+  stopping = true;
+  /* The documented client messages are session.update, input.audio and
+     tool.result. A clean 1000 close is the supported way to end. */
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    try { ws.close(1000, 'learner ended session'); } catch (e) {}
+  }
+  teardown();
+});
+
+/* The deck boots when the iframe loads and would start narrating before the
+   learner ever presses Start. The preference above should stop it; this is
+   the second belt, for a cached boot that got in first. */
+deckFrame.addEventListener('load', () => {
+  muteDeckNarration();
+  if (deckState(deckFrame.contentWindow)) tagEl.textContent = 'Module · ready';
+});
+
+window.addEventListener('beforeunload', () => { stopping = true; teardown(); });
+</script>
+</body>
+</html>

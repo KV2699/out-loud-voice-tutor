@@ -1,0 +1,549 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inclusive Practice at Work — Voice Tutor</title>
+<style>
+  /* Series light theme, module 1. Values lifted from
+     inclusive-practice/src/tokens.css so the tutor and the deck are the same
+     product — white page, near-black ink, blue as the action colour.
+
+     The contrast floor decided which token may hold words: --blue-500 is the
+     lightest blue in the set that passes for text (6.3:1 on white), so it
+     carries the tutor's voice. --blue-300 is decorative only. */
+  :root{
+    --page:#ffffff;
+    --well:#f6f5f3;
+    --ink:#141414;
+    --ink-dim:#3d3d3d;
+    --ink-faint:#5c5c5c;
+
+    --blue-600:#1e40af;
+    --blue-500:#1d4ed8;
+    --blue-400:#3b82f6;
+    --blue-300:#93c5fd;
+    --blue-100:#dbeafe;
+    --blue-50:#eff6ff;
+
+    --good:#047857;
+    --bad:#be123c;
+    --line:rgba(20,20,20,.13);
+  }
+  *,*::before,*::after{box-sizing:border-box;}
+  body{
+    margin:0;min-height:100vh;
+    background:var(--page);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    display:flex;flex-direction:column;align-items:center;
+    padding:48px 24px 64px;
+  }
+  h1{font-size:clamp(1.6rem,4vw,2.4rem);font-weight:800;letter-spacing:-.025em;text-align:center;margin:0;text-wrap:balance;}
+  .sub{margin:10px 0 0;color:var(--ink-faint);font-size:.95rem;letter-spacing:.04em;}
+
+  .mic{
+    margin:44px 0 18px;
+    width:190px;height:190px;border-radius:50%;
+    border:0;cursor:pointer;
+    background:var(--blue-500);color:#fff;
+    font-size:1.05rem;font-weight:700;
+    box-shadow:0 14px 34px rgba(29,78,216,.28);
+    transition:transform .2s ease, box-shadow .2s ease, background .2s ease;
+  }
+  .mic:hover:not(:disabled){transform:translateY(-3px);background:var(--blue-600);box-shadow:0 20px 44px rgba(29,78,216,.34);}
+  .mic:focus-visible{outline:3px solid var(--blue-400);outline-offset:4px;}
+  .mic:disabled{opacity:.5;cursor:default;}
+  .mic.is-live{animation:pulse 2s ease-in-out infinite;}
+  @keyframes pulse{
+    0%,100%{box-shadow:0 0 0 0 rgba(29,78,216,.34), 0 14px 34px rgba(29,78,216,.22);}
+    50%    {box-shadow:0 0 0 26px rgba(29,78,216,0), 0 14px 34px rgba(29,78,216,.22);}
+  }
+  @media (prefers-reduced-motion: reduce){ .mic.is-live{animation:none;} }
+
+  .status{display:flex;align-items:center;gap:9px;color:var(--ink-faint);font-size:.82rem;letter-spacing:.08em;text-transform:uppercase;font-weight:600;}
+  .dot{width:9px;height:9px;border-radius:50%;background:#9ca3af;}
+  .dot.connecting{background:#a16207;}
+  .dot.connected{background:var(--good);}
+  .dot.error{background:var(--bad);}
+
+  .stop{
+    margin-top:18px;padding:12px 26px;border-radius:999px;min-height:44px;
+    background:transparent;color:var(--ink-dim);
+    border:1px solid var(--line);cursor:pointer;font-size:.9rem;font-weight:600;
+  }
+  .stop:hover:not(:disabled){color:var(--ink);border-color:var(--blue-400);}
+  .stop:focus-visible{outline:3px solid var(--blue-400);outline-offset:3px;}
+  .stop:disabled{opacity:.4;cursor:default;}
+
+  .log{
+    width:100%;max-width:720px;margin-top:40px;
+    border-top:1px solid var(--line);padding-top:24px;
+    display:flex;flex-direction:column;gap:16px;
+  }
+  .line{line-height:1.55;font-size:1.02rem;}
+  .line b{
+    display:block;font-size:.7rem;letter-spacing:.18em;text-transform:uppercase;
+    margin-bottom:4px;font-weight:700;
+  }
+  /* The learner is ink, the tutor is blue — the deck's own rule, where the
+     accent marks the thing being taught and body copy stays near-black. */
+  .line.you   {color:var(--ink);}
+  .line.you  b{color:var(--ink-faint);}
+  .line.tutor {color:var(--blue-500);}
+  .line.tutor b{color:var(--blue-600);}
+  .line.partial{opacity:.5;}
+  .empty{color:var(--ink-faint);font-size:.95rem;}
+  .err{max-width:720px;margin-top:20px;padding:14px 16px;border-radius:8px;
+       background:#fff1f2;border:1px solid rgba(190,18,60,.35);
+       color:#9f1239;font-size:.9rem;line-height:1.5;}
+  [hidden]{display:none !important;}
+</style>
+</head>
+<body>
+
+  <h1>Inclusive Practice at Work — Voice Tutor</h1>
+  <p class="sub">Powered by AssemblyAI</p>
+
+  <button class="mic" id="mic" type="button">Start Learning</button>
+
+  <div class="status"><span class="dot" id="dot"></span><span id="status">Disconnected</span></div>
+  <button class="stop" id="stop" type="button" disabled>End session</button>
+
+  <div class="err" id="err" hidden></div>
+
+  <div class="log" id="log"><p class="empty">The conversation will appear here.</p></div>
+
+<script>
+'use strict';
+
+/* =========================================================================
+   The whole voice pipeline is ONE AssemblyAI WebSocket: it hears the
+   learner, decides what to say, and speaks back. There is no separate
+   STT / LLM / TTS to wire together.
+
+   Audio contract, both directions: 24 kHz PCM, 16-bit signed
+   little-endian, mono, base64 inside a JSON message.
+   ========================================================================= */
+
+const WS_URL  = 'wss://agents.assemblyai.com/v1/ws';
+const RATE    = 24000;
+
+const SYSTEM_PROMPT = `
+You are an AI learning tutor for a workplace training module called
+"Inclusive Practice at Work". You guide the learner through the module by
+voice — teaching, checking understanding, and giving warm, clear feedback.
+
+PART 1 — INCLUSIVE PRACTICE AT WORK
+- Diversity is who is in the room. It is a description, and it is countable.
+- Equity is adjusting support so the same outcome is reachable for everyone.
+  It starts from the outcome and works backwards.
+- Inclusion is whether people can contribute without editing themselves first.
+- The three words get used interchangeably. They should not be.
+
+Activity — six situations, sorted into Inclusive or Worth flagging.
+INCLUSIVE:
+ - A recent graduate is chosen to lead a team of longer-serving colleagues,
+   on the strength of their work.
+ - A project lead holds fewer formal qualifications than the specialists
+   reporting to them.
+ - A candidate from a low-income background is hired purely on demonstrated
+   ability.
+WORTH FLAGGING:
+ - Colleagues who hold different political views are deliberately kept off
+   the same project.
+ - Staff from different cultural backgrounds are quietly rostered onto
+   separate shifts.
+ - A role is described as "better suited to someone younger" during
+   shortlisting.
+The thread: the three worth flagging all sort people by something other than
+the work itself — background, age, or opinion.
+
+PART 2 — STEREOTYPING AND THE BEHAVIOUR RULES
+- Almost nobody sets out to stereotype. It arrives as a shortcut: a
+  sensible-sounding reason, reached quickly, by someone with too much on.
+  That is why it survives — it never announces itself and it is always
+  defensible after the fact.
+- It shows up in hiring (who "fits"), rostering (who is asked to be
+  flexible), and the good work (who gets the project that gets noticed).
+
+Activity — six true/false statements. The answers are:
+ 1. "If nobody complained, the decision was probably fine." FALSE.
+    Silence is the least reliable signal you have. The people most affected
+    by a decision are usually the least safe to challenge it.
+ 2. "Describing a role as needing a safe pair of hands can quietly screen
+    out newer staff." TRUE. Phrases about temperament very often stand in
+    for length of service, and nobody has to say so out loud.
+ 3. "Rotating who takes the notes in meetings is a fair thing to formalise."
+    TRUE. Left informal, note-taking lands on the same people. A rota costs
+    nothing and settles it.
+ 4. "Giving the high-profile project to whoever asks for it is the fairest
+    method." FALSE. It rewards confidence, not capability. Asking is easier
+    for people who already expect to be told yes.
+ 5. "You should raise a concern about a colleague's comment even if they
+    clearly meant no harm." TRUE. Intent and effect are different things.
+    Naming it once, quietly, is usually enough.
+ 6. "Adjusting a process for one person's access needs is special
+    treatment." FALSE. It is the definition of equity — the adjustment
+    exists so the same outcome is reachable.
+
+PART 3 — WHAT TO DO IN THE MOMENT, AND THE KNOWLEDGE CHECK
+Three small moves cover almost every case, and none need a meeting:
+ - NAME IT. "That was Priya's idea." One sentence, in the room, while it
+   still counts.
+ - ASK IT. "What do we mean by fit?" A question is harder to dismiss than
+   an objection.
+ - CHANGE THE DEFAULT. A rota, a rule, a template — anything that stops it
+   depending on who remembers.
+
+Knowledge check — three questions:
+ 1. What separates equity from equality?
+    Equality distributes the same thing to everyone. Equity starts from the
+    outcome and works backwards, so different people may need different
+    support to get there.
+ 2. What is the strongest evidence that a team is genuinely inclusive?
+    That people contribute openly without first editing what they were going
+    to say. A headcount report is diversity, not inclusion; a published
+    policy is intent.
+ 3. A colleague's suggestion is passed over, then praised when someone else
+    repeats it. What is most useful? Name the original contributor in the
+    moment. It costs one sentence and it lands while everyone is still in
+    the room.
+
+HOW TO TUTOR:
+- Teach conversationally. Never read a list at the learner.
+- Ask ONE question at a time, then wait for the answer.
+- Wrong answer: explain gently why, and offer another go.
+- Right answer: affirm briefly, then move on.
+- Keep replies under three sentences wherever you can. This is a spoken
+  conversation, not a lecture.
+- Praise the thinking, not the person, and not more than once per part.
+- Do not rush. Let the conversation breathe.
+- At the end, give a short spoken summary of what they covered and what
+  they did well.
+`.trim();
+
+const GREETING = "Hi, I'm your learning guide for Inclusive Practice at Work. " +
+                 "This will take about 12 minutes. Ready to start with Part 1?";
+
+/* ---------- elements ---------------------------------------------------- */
+const micBtn = document.getElementById('mic');
+const stopBtn = document.getElementById('stop');
+const statusEl = document.getElementById('status');
+const dotEl = document.getElementById('dot');
+const logEl = document.getElementById('log');
+const errEl = document.getElementById('err');
+
+/* ---------- state ------------------------------------------------------- */
+let ws = null;
+let micCtx = null, micStream = null, micNode = null;
+let outCtx = null, nextPlayAt = 0, scheduled = [];
+let ready = false, stopping = false;
+let partialEl = null;
+
+/* ---------- ui ---------------------------------------------------------- */
+function setStatus(text, cls) {
+  statusEl.textContent = text;
+  dotEl.className = 'dot' + (cls ? ' ' + cls : '');
+}
+function showError(msg) {
+  errEl.textContent = msg;
+  errEl.hidden = false;
+}
+function clearError() { errEl.hidden = true; }
+
+function addLine(who, text, partial) {
+  const empty = logEl.querySelector('.empty');
+  if (empty) empty.remove();
+  const el = document.createElement('p');
+  el.className = 'line ' + who + (partial ? ' partial' : '');
+  el.innerHTML = '<b>' + (who === 'you' ? 'You' : 'Tutor') + '</b>';
+  el.appendChild(document.createTextNode(text));
+  logEl.appendChild(el);
+  el.scrollIntoView({ block: 'nearest' });
+  return el;
+}
+
+/* ---------- base64 <-> pcm --------------------------------------------- */
+function b64ToInt16(b64) {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Int16Array(bytes.buffer);
+}
+function int16ToB64(int16) {
+  const bytes = new Uint8Array(int16.buffer);
+  let bin = '';
+  /* Chunked — String.fromCharCode.apply blows the stack on a long buffer. */
+  const STEP = 0x8000;
+  for (let i = 0; i < bytes.length; i += STEP) {
+    bin += String.fromCharCode.apply(null, bytes.subarray(i, i + STEP));
+  }
+  return btoa(bin);
+}
+
+/* ---------- playing the tutor's voice ----------------------------------
+   Chunks arrive faster than real time, so each one is scheduled to start
+   where the last finished. Playing them on arrival would overlap them into
+   noise. `scheduled` is kept so an interruption can silence what has been
+   queued but not yet heard.
+   ---------------------------------------------------------------------- */
+function playChunk(int16) {
+  if (!outCtx) return;
+  const buf = outCtx.createBuffer(1, int16.length, RATE);
+  const ch = buf.getChannelData(0);
+  for (let i = 0; i < int16.length; i++) ch[i] = int16[i] / 32768;
+
+  const src = outCtx.createBufferSource();
+  src.buffer = buf;
+  src.connect(outCtx.destination);
+
+  const now = outCtx.currentTime;
+  if (nextPlayAt < now) nextPlayAt = now + 0.03;   // small cushion
+  src.start(nextPlayAt);
+  nextPlayAt += buf.duration;
+
+  scheduled.push(src);
+  src.onended = () => { scheduled = scheduled.filter(s => s !== src); };
+}
+
+function flushPlayback() {
+  scheduled.forEach(s => { try { s.stop(); } catch (e) {} });
+  scheduled = [];
+  nextPlayAt = 0;
+}
+
+/* ---------- microphone --------------------------------------------------
+   AudioWorklet, not MediaRecorder: MediaRecorder hands back encoded webm/
+   opus, and this API wants raw PCM frames. The worklet is built from a Blob
+   so the whole frontend stays one file.
+   ---------------------------------------------------------------------- */
+const WORKLET_SRC = `
+class Tap extends AudioWorkletProcessor {
+  process(inputs) {
+    const ch = inputs[0] && inputs[0][0];
+    if (ch && ch.length) this.port.postMessage(new Float32Array(ch));
+    return true;
+  }
+}
+registerProcessor('tap', Tap);
+`;
+
+/* Browsers may refuse an exact 24 kHz capture context. If the context comes
+   back at another rate, drop to 24 kHz here rather than sending audio the
+   API will mis-hear. */
+function downsample(input, from, to) {
+  if (from === to) return input;
+  const ratio = from / to;
+  const out = new Float32Array(Math.round(input.length / ratio));
+  for (let i = 0; i < out.length; i++) {
+    const start = Math.floor(i * ratio);
+    const end = Math.min(input.length, Math.floor((i + 1) * ratio));
+    let sum = 0, n = 0;
+    for (let j = start; j < end; j++) { sum += input[j]; n++; }
+    out[i] = n ? sum / n : 0;
+  }
+  return out;
+}
+
+async function startMic() {
+  micStream = await navigator.mediaDevices.getUserMedia({
+    audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true }
+  });
+
+  try { micCtx = new AudioContext({ sampleRate: RATE }); }
+  catch (e) { micCtx = new AudioContext(); }
+  if (micCtx.state === 'suspended') await micCtx.resume();
+
+  const url = URL.createObjectURL(new Blob([WORKLET_SRC], { type: 'application/javascript' }));
+  await micCtx.audioWorklet.addModule(url);
+  URL.revokeObjectURL(url);
+
+  const src = micCtx.createMediaStreamSource(micStream);
+  micNode = new AudioWorkletNode(micCtx, 'tap');
+
+  micNode.port.onmessage = e => {
+    if (!ready || !ws || ws.readyState !== WebSocket.OPEN) return;
+    const f32 = downsample(e.data, micCtx.sampleRate, RATE);
+    const i16 = new Int16Array(f32.length);
+    for (let i = 0; i < f32.length; i++) {
+      const s = Math.max(-1, Math.min(1, f32[i]));
+      i16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+    }
+    ws.send(JSON.stringify({ type: 'input.audio', audio: int16ToB64(i16) }));
+  };
+
+  src.connect(micNode);
+  /* Not connected to destination — that would echo the learner back at
+     themselves through their own speakers. */
+}
+
+/* ---------- the session ------------------------------------------------- */
+async function getToken() {
+  const r = await fetch('/api/token');
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.fix || data.error || `Token request failed (${r.status})`);
+  return data.token;
+}
+
+async function connect() {
+  clearError();
+  setStatus('Connecting', 'connecting');
+  micBtn.disabled = true;
+  stopping = false;
+
+  let token;
+  try {
+    token = await getToken();
+  } catch (e) {
+    showError(String(e.message || e));
+    setStatus('Disconnected', 'error');
+    micBtn.disabled = false;
+    return;
+  }
+
+  outCtx = new AudioContext({ sampleRate: RATE });
+  if (outCtx.state === 'suspended') await outCtx.resume();
+
+  ws = new WebSocket(`${WS_URL}?token=${encodeURIComponent(token)}`);
+
+  ws.onopen = () => {
+    /* Everything the agent is and knows, inline — no agent has to be created
+       up front, which keeps the whole submission one deploy. */
+    ws.send(JSON.stringify({
+      type: 'session.update',
+      session: {
+        system_prompt: SYSTEM_PROMPT,
+        greeting: GREETING,
+        input: {
+          format: { encoding: 'audio/pcm' },
+          turn_detection: { interrupt_response: true }
+        },
+        output: {
+          voice: 'anna',
+          format: { encoding: 'audio/pcm' }
+        }
+      }
+    }));
+  };
+
+  ws.onmessage = async ev => {
+    let msg;
+    try { msg = JSON.parse(ev.data); } catch (e) { return; }
+
+    switch (msg.type) {
+      case 'session.ready':
+        ready = true;
+        setStatus('Connected', 'connected');
+        micBtn.textContent = 'Listening…';
+        micBtn.classList.add('is-live');
+        stopBtn.disabled = false;
+        try { await startMic(); }
+        catch (e) {
+          showError('Could not open the microphone: ' + (e.message || e) +
+                    '  Allow microphone access and press Start again.');
+          teardown();
+        }
+        break;
+
+      /* The learner, streaming then final. */
+      case 'transcript.user.delta':
+        if (!partialEl) partialEl = addLine('you', msg.text || '', true);
+        else partialEl.lastChild.nodeValue = msg.text || '';
+        break;
+      case 'transcript.user':
+        if (partialEl) { partialEl.remove(); partialEl = null; }
+        if (msg.text) addLine('you', msg.text);
+        break;
+
+      /* The tutor. */
+      case 'transcript.agent':
+        if (msg.text) addLine('tutor', msg.text);
+        break;
+
+      case 'reply.audio':
+        if (msg.data) playChunk(b64ToInt16(msg.data));
+        break;
+
+      /* The learner talked over the tutor — drop what was queued so the
+         tutor stops mid-sentence like a person would. */
+      case 'input.speech.started':
+        flushPlayback();
+        break;
+      case 'reply.done':
+        if (msg.status === 'interrupted') flushPlayback();
+        break;
+
+      case 'error':
+        showError('AssemblyAI: ' + (msg.error || msg.message || 'unknown error'));
+        break;
+    }
+  };
+
+  ws.onerror = () => { /* onclose carries the actionable detail */ };
+
+  ws.onclose = ev => {
+    ready = false;
+    if (stopping) { setStatus('Disconnected'); return; }
+
+    /* 1006 is an abnormal close — most often a token that was already
+       redeemed or had expired before the socket opened. Tokens are
+       single-use, so recovery means minting a new one, never retrying
+       with the old one. One attempt, then hand it back to the learner. */
+    if (ev.code === 1006 && !connect._retried) {
+      connect._retried = true;
+      setStatus('Reconnecting', 'connecting');
+      teardownAudio();
+      setTimeout(connect, 400);
+      return;
+    }
+    connect._retried = false;
+    teardown();
+    if (ev.code !== 1000) {
+      showError(`Connection closed (${ev.code}${ev.reason ? ': ' + ev.reason : ''}). Press Start Learning to try again.`);
+    }
+  };
+}
+
+/* ---------- teardown ---------------------------------------------------- */
+function teardownAudio() {
+  flushPlayback();
+  if (micNode) { try { micNode.port.onmessage = null; micNode.disconnect(); } catch (e) {} micNode = null; }
+  if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+  if (micCtx) { try { micCtx.close(); } catch (e) {} micCtx = null; }
+  if (outCtx) { try { outCtx.close(); } catch (e) {} outCtx = null; }
+}
+
+function teardown() {
+  ready = false;
+  teardownAudio();
+  if (ws) { try { ws.close(); } catch (e) {} ws = null; }
+  micBtn.disabled = false;
+  micBtn.textContent = 'Start Learning';
+  micBtn.classList.remove('is-live');
+  stopBtn.disabled = true;
+  setStatus('Disconnected');
+}
+
+/* ---------- wiring ------------------------------------------------------ */
+micBtn.addEventListener('click', () => {
+  if (ws) return;
+  connect._retried = false;
+  connect();
+});
+
+stopBtn.addEventListener('click', () => {
+  stopping = true;
+  /* Just close the socket. The documented client messages are session.update,
+     input.audio and tool.result — inventing a "session.close" would be an
+     unknown type, and the server answers those with an error event. A clean
+     1000 close is the supported way to end a session. */
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    try { ws.close(1000, 'learner ended session'); } catch (e) {}
+  }
+  teardown();
+});
+
+window.addEventListener('beforeunload', () => { stopping = true; teardown(); });
+</script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "name": "inclusive-practice-voice-tutor",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Voice-powered eLearning tutor for Inclusive Practice at Work. AssemblyAI Voice Agent Hackathon.",
+  "main": "server/index.js",
+  "type": "commonjs",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node server/index.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
+  }
+}
