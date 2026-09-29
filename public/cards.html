@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Out Loud — title cards</title>
+<style>
+  /* Deliberately the product's own visual language, not a separate "video
+     brand" — same white ground, same ink, same blue, same type stack as the
+     tutor page. A title card that looks like a different product is the
+     commonest way a hackathon video reads as two things bolted together. */
+  :root{
+    --page:#ffffff;
+    --ink:#141414;
+    --ink-faint:#5c5c5c;
+    --blue-600:#1e40af;
+    --blue-500:#1d4ed8;
+    --blue-100:#dbeafe;
+    --line:rgba(20,20,20,.13);
+  }
+  *,*::before,*::after{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;background:var(--page);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    display:grid;place-items:center;overflow:hidden;
+  }
+
+  .card{
+    display:none;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;gap:26px;padding:6vh 7vw;max-width:1100px;
+  }
+  .card.is-on{display:flex;}
+
+  .eyebrow{
+    margin:0;font-size:clamp(.66rem,1.2vw,.8rem);font-weight:700;
+    letter-spacing:.22em;text-transform:uppercase;color:var(--blue-600);
+  }
+  .title{
+    margin:0;font-size:clamp(2.8rem,8vw,5.6rem);font-weight:800;
+    letter-spacing:-.035em;line-height:.98;text-wrap:balance;
+  }
+  .title em{font-style:normal;color:var(--blue-500);}
+  .tag{
+    margin:0;font-size:clamp(1.05rem,2.3vw,1.6rem);color:var(--ink);
+    font-weight:500;max-width:22ch;line-height:1.28;text-wrap:balance;
+  }
+
+  .rule{width:64px;height:3px;background:var(--blue-500);border-radius:2px;}
+
+  .meta{
+    display:flex;flex-wrap:wrap;justify-content:center;gap:10px 30px;
+    font-size:clamp(.78rem,1.4vw,.98rem);color:var(--ink-faint);
+  }
+  .meta b{color:var(--ink);font-weight:600;}
+
+  /* the orb, reused at card scale so the two cards and the product match */
+  .orb{
+    width:clamp(84px,11vw,132px);aspect-ratio:1;border-radius:50%;
+    background:
+      radial-gradient(circle at 34% 26%, rgba(255,255,255,.95) 0%, rgba(255,255,255,.55) 4%, rgba(255,255,255,0) 13%),
+      radial-gradient(circle at 70% 82%, hsla(226 100% 82% / .5) 0%, transparent 42%),
+      radial-gradient(circle at 36% 30%,
+        hsl(226 85% 72%) 0%, hsl(226 85% 55%) 38%,
+        hsl(238 85% 40%) 72%, hsl(246 85% 32%) 100%);
+    box-shadow:0 22px 40px -18px hsla(226 70% 40% / .5),
+               inset 0 -12px 22px -10px hsla(226 90% 22% / .5),
+               inset 0 8px 18px -8px rgba(255,255,255,.4);
+    -webkit-mask-image:radial-gradient(circle, #000 98.5%, transparent 100%);
+            mask-image:radial-gradient(circle, #000 98.5%, transparent 100%);
+  }
+
+  .links{
+    display:flex;flex-direction:column;gap:9px;
+    font-size:clamp(.92rem,1.7vw,1.15rem);
+  }
+  .links span{color:var(--ink-faint);}
+  .links b{color:var(--blue-600);font-weight:600;word-break:break-all;}
+
+  /* a quiet control strip — it is not recorded, the box is drawn around the
+     card itself */
+  .bar{
+    position:fixed;left:0;right:0;bottom:0;display:flex;gap:10px;
+    justify-content:center;padding:12px;background:rgba(255,255,255,.92);
+    border-top:1px solid var(--line);
+  }
+  .bar button{
+    padding:8px 16px;border-radius:999px;border:1px solid var(--line);
+    background:#fff;cursor:pointer;font:inherit;font-size:.82rem;font-weight:600;
+    color:var(--ink);
+  }
+  .bar button:hover{border-color:var(--blue-500);color:var(--blue-600);}
+  .bar .hint{align-self:center;font-size:.76rem;color:var(--ink-faint);}
+  body.clean .bar{display:none;}
+</style>
+</head>
+<body>
+
+  <!-- ===== TITLE CARD ===== -->
+  <div class="card is-on" id="card-title">
+    <div class="orb" aria-hidden="true"></div>
+    <p class="eyebrow">AssemblyAI Voice Agent Hackathon</p>
+    <h1 class="title">Out <em>Loud</em></h1>
+    <p class="tag">Courseware you operate by voice.</p>
+    <div class="rule" aria-hidden="true"></div>
+    <div class="meta">
+      <span>Team <b>Out Loud</b></span>
+      <span>Solo entry</span>
+      <span>Built on the <b>AssemblyAI Voice Agent API</b></span>
+    </div>
+  </div>
+
+  <!-- ===== END CARD ===== -->
+  <div class="card" id="card-end">
+    <p class="eyebrow">Try it yourself</p>
+    <h1 class="title" style="font-size:clamp(2rem,5vw,3.4rem)">Out <em>Loud</em></h1>
+    <div class="links">
+      <span>Live app</span>
+      <b id="live-url">out-loud-voice-tutor.vercel.app</b>
+      <span style="margin-top:12px">Code</span>
+      <b>github.com/KV2699/out-loud-voice-tutor</b>
+    </div>
+    <div class="rule" aria-hidden="true"></div>
+    <p class="meta"><span>Built solo on the <b>AssemblyAI Voice Agent API</b></span></p>
+  </div>
+
+  <div class="bar">
+    <button type="button" data-go="card-title">Title card</button>
+    <button type="button" data-go="card-end">End card</button>
+    <button type="button" id="clean">Hide this bar</button>
+    <span class="hint">Press H to bring the bar back</span>
+  </div>
+
+<script>
+  var cards = ['card-title', 'card-end'];
+  function show(id) {
+    cards.forEach(function (c) {
+      document.getElementById(c).classList.toggle('is-on', c === id);
+    });
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('[data-go]'), function (b) {
+    b.addEventListener('click', function () { show(b.dataset.go); });
+  });
+  document.getElementById('clean').addEventListener('click', function () {
+    document.body.classList.add('clean');
+  });
+  /* The bar has to be hidden to record, so there needs to be a way back that
+     is not "reload and lose your place". */
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'h' || e.key === 'H') document.body.classList.remove('clean');
+    if (e.key === '1') show('card-title');
+    if (e.key === '2') show('card-end');
+  });
+</script>
+</body>
+</html>
