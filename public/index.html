@@ -80,7 +80,10 @@
   .dot.error{background:var(--bad);}
 
   .stop{
-    padding:10px 20px;border-radius:999px;min-height:44px;
+    /* Matches .pause and .mute above it — three stacked controls that do not
+       line up read as three unrelated things rather than one set. */
+    display:flex;align-items:center;justify-content:center;
+    padding:10px 20px;border-radius:999px;min-height:44px;width:100%;
     background:transparent;color:var(--ink-dim);
     border:1px solid var(--line);cursor:pointer;font-size:.84rem;font-weight:600;
   }
@@ -106,6 +109,58 @@
   .err{margin-top:12px;padding:12px 14px;border-radius:8px;
        background:#fff1f2;border:1px solid rgba(190,18,60,.35);
        color:#9f1239;font-size:.84rem;line-height:1.5;}
+  /* ---- pause ------------------------------------------------------------
+     Stopping the tutor mid-sentence needed a control. Without one the only
+     way to make it stop talking was to talk over it, which is fine as
+     barge-in and useless when what you actually want is quiet.
+     -------------------------------------------------------------------- */
+  .pause{
+    display:flex;align-items:center;justify-content:center;gap:9px;
+    padding:11px 18px;border-radius:999px;min-height:46px;width:100%;
+    background:var(--blue-50);color:var(--blue-600);
+    border:1px solid var(--blue-100);cursor:pointer;font-size:.9rem;font-weight:700;
+    transition:background .18s ease, color .18s ease, border-color .18s ease;
+  }
+  .pause:hover:not(:disabled){background:var(--blue-100);}
+  .pause:focus-visible{outline:3px solid var(--blue-400);outline-offset:3px;}
+  .pause:disabled{opacity:.4;cursor:default;}
+  .pause[aria-pressed="true"]{
+    background:var(--blue-500);border-color:var(--blue-500);color:#fff;
+  }
+
+  /* ---- the mute ---------------------------------------------------------
+     The microphone was open for the whole session with no way to close it
+     short of ending the whole thing. A learner clicking through a screen, or
+     sitting in a room with other people in it, had no way to stop their audio
+     being streamed. That is a privacy control, not a convenience.
+
+     Muted state is loud on purpose — a mute you are not certain about is
+     worse than none, because you behave as though it is on when it is not.
+     -------------------------------------------------------------------- */
+  .mute{
+    display:flex;align-items:center;justify-content:center;gap:9px;
+    padding:10px 18px;border-radius:999px;min-height:44px;width:100%;
+    background:transparent;color:var(--ink-dim);
+    border:1px solid var(--line);cursor:pointer;font-size:.84rem;font-weight:600;
+    transition:background .18s ease, color .18s ease, border-color .18s ease;
+  }
+  .mute__dot{
+    width:8px;height:8px;border-radius:50%;background:var(--good);flex:none;
+    box-shadow:0 0 0 3px rgba(4,120,87,.16);
+  }
+  .mute:hover:not(:disabled){border-color:var(--blue-400);color:var(--ink);}
+  .mute:focus-visible{outline:3px solid var(--blue-400);outline-offset:3px;}
+  .mute:disabled{opacity:.4;cursor:default;}
+  .mute[aria-pressed="true"]{
+    background:#fff1f2;border-color:rgba(190,18,60,.45);color:#9f1239;
+  }
+  .mute[aria-pressed="true"] .mute__dot{
+    background:var(--bad);box-shadow:0 0 0 3px rgba(190,18,60,.16);
+    animation:mutepulse 1.8s ease-in-out infinite;
+  }
+  @keyframes mutepulse{50%{opacity:.35;}}
+  @media (prefers-reduced-motion: reduce){ .mute[aria-pressed="true"] .mute__dot{animation:none;} }
+
   /* ---- the cost meter --------------------------------------------------
      The Voice Agent API bills for as long as the socket is OPEN — $4.50/hr,
      idle time included, not just the time anyone is speaking. With no meter
@@ -194,12 +249,40 @@
     animation:float var(--orb-float) ease-in-out infinite;
     transition:transform .45s cubic-bezier(.2,.8,.25,1);
     isolation:isolate;
-    /* The shimmer layer scales past 1 as it turns, and without this it leaks
-       out past the edge as a pink haze — the silhouette goes soft and it
-       stops reading as a sphere. Clips children only; the contact shadow
-       below is a box-shadow and survives. */
+    /* The shimmer layer scales past 1 as it turns and would otherwise leak out
+       past the edge as a pink haze. But plain `overflow:hidden` on a round
+       element clips to a HARD edge, and against a white page that reads as a
+       jagged staircase rather than a sphere.
+
+       So the clip is a mask with a soft last 1.5% instead. The pixels at the
+       rim fade rather than stopping dead, which is what antialiasing on a
+       curve is supposed to look like. */
     overflow:hidden;
+    -webkit-mask-image:radial-gradient(circle, #000 98.5%, transparent 100%);
+            mask-image:radial-gradient(circle, #000 98.5%, transparent 100%);
   }
+  /* The halo. A hard-edged sphere sitting on flat white has nothing between
+     it and the page, and the eye reads that abrupt stop as raggedness even
+     when the pixels are fine. This gives the edge somewhere to go. */
+  .door__orb{
+    position:relative;display:inline-grid;place-items:center;
+    padding:40px;
+  }
+  .door__orb::before{
+    content:"";position:absolute;inset:0;border-radius:50%;
+    background:radial-gradient(circle,
+      hsla(var(--orb-hue,226) 90% 62% / .28) 0%,
+      hsla(var(--orb-hue,226) 90% 62% / .12) 42%,
+      transparent 68%);
+    filter:blur(14px);pointer-events:none;
+    animation:halo 7s ease-in-out infinite;
+  }
+  @keyframes halo{
+    0%,100%{transform:scale(1);opacity:.9;}
+    50%    {transform:scale(1.07);opacity:1;}
+  }
+  @media (prefers-reduced-motion: reduce){ .door__orb::before{animation:none;} }
+
   /* the iridescent film — two sweeps at different speeds, so the shimmer
      never repeats on an obvious beat */
   .door__go::before{
@@ -358,9 +441,11 @@
   <div class="door" id="door">
     <p class="door__eyebrow">Inclusive Practice at Work</p>
     <h2 class="door__title">A course you take by talking</h2>
-    <button class="door__go" id="door-go" type="button">
-      <span class="door__go__label" id="door-go-label">Start</span>
-    </button>
+    <span class="door__orb">
+      <button class="door__go" id="door-go" type="button">
+        <span class="door__go__label" id="door-go-label">Start</span>
+      </button>
+    </span>
     <p class="door__note">Your tutor speaks, you answer out loud, and the
        module follows. You'll be asked for your microphone next.</p>
     <p class="door__again" id="door-again">Press the blue circle to begin.</p>
@@ -383,6 +468,13 @@
         <span class="meter__t" id="meter-time">0:00</span>
         <span class="meter__c" id="meter-cost">$0.00</span>
       </div>
+      <button class="pause" id="pause" type="button" disabled aria-pressed="false">
+        <span id="pause-label">Pause</span>
+      </button>
+      <button class="mute" id="mute" type="button" disabled aria-pressed="false">
+        <span class="mute__dot" aria-hidden="true"></span>
+        <span id="mute-label">Mute microphone</span>
+      </button>
       <button class="stop" id="stop" type="button" disabled>End session</button>
     </div>
 
@@ -1996,6 +2088,12 @@ function advance() {
   const win = deckFrame.contentWindow;
   const st = deckState(win);
   if (!win || !st) return Promise.resolve('The module is not ready yet.');
+  /* The learner has stepped away. Moving the course while they are gone is
+     the exact thing the whole design exists to prevent. */
+  if (sessionPaused) {
+    return Promise.resolve('The learner has PAUSED the session and is not here. ' +
+      'Do not move anything and do not keep talking. Wait.');
+  }
 
   /* The agent calls this twice in a row, repeatedly. A second call used to
      land on a refusal, which reads to a model as a failure worth retrying —
@@ -2543,6 +2641,7 @@ async function startMic() {
   micNode = new AudioWorkletNode(micCtx, 'tap');
 
   micNode.port.onmessage = e => {
+    if (micMuted) return;                 // belt: nothing leaves the browser
     if (!ready || !ws || ws.readyState !== WebSocket.OPEN) return;
     const f32 = downsample(e.data, micCtx.sampleRate, RATE);
     const i16 = new Int16Array(f32.length);
@@ -2757,6 +2856,8 @@ async function connect() {
         micBtn.textContent = 'Listening…';
         micBtn.classList.add('is-live');
         stopBtn.disabled = false;
+        document.getElementById('mute').disabled = false;
+        document.getElementById('pause').disabled = false;
         muteDeckNarration();
         /* ?scene=9 opens the module anywhere — for filming a demo, or picking
            up a part without playing the whole thing through. Falls back to the
@@ -2917,6 +3018,16 @@ function teardownAudio() {
 function teardown() {
   ready = false;
   stopMeter();
+  micMuted = false;
+  sessionPaused = false;
+  const pb = document.getElementById('pause');
+  if (pb) { pb.disabled = true; pb.setAttribute('aria-pressed', 'false'); }
+  const pl = document.getElementById('pause-label');
+  if (pl) pl.textContent = 'Pause';
+  const mb = document.getElementById('mute');
+  if (mb) { mb.disabled = true; mb.setAttribute('aria-pressed', 'false'); }
+  const ml = document.getElementById('mute-label');
+  if (ml) ml.textContent = 'Mute microphone';
   clearInterval(journeyTimer); journeyTimer = null;
   Reveal.stop();
   teardownAudio();
@@ -3357,6 +3468,88 @@ deckFrame.addEventListener('load', () => {
 });
 
 /* ------------------------------------------------------------------------
+   PAUSE
+
+   "Stop talking, I need a minute." Barge-in already lets the learner cut the
+   tutor off by speaking, but that is not the same thing — talking over
+   someone to make them stop is not how you take a break.
+
+   Pause does four things at once, because a half-pause is worse than none:
+     the tutor stops mid-sentence      (flush the scheduled audio)
+     the microphone closes             (the room is not being streamed)
+     the module holds                  (the deck's own pause, so the game and
+                                        every animation stop where they are)
+     nothing can advance               (a queued tool call must not sneak
+                                        the course forward while they are away)
+
+   What it cannot do is stop the bill. The socket is open, so the meter runs.
+   A paused session gets a longer idle window than a silent one — six minutes
+   rather than three — and then closes itself, because a pause someone walked
+   away from is exactly the case that was quietly costing money.
+   ---------------------------------------------------------------------- */
+let sessionPaused = false;
+
+function deckPause(on) {
+  try {
+    const doc = deckFrame.contentWindow.document;
+    const btn = doc.getElementById('btn-pause');
+    if (!btn) return;
+    /* aria-pressed tells "already paused" from "needs a press", so this never
+       toggles blind and lands on the opposite of what was asked. */
+    if ((btn.getAttribute('aria-pressed') === 'true') !== on) btn.click();
+  } catch (e) {}
+}
+
+function setPaused(on) {
+  sessionPaused = on;
+  if (on) flushPlayback();          // the tutor stops mid-word
+  setMuted(on);                     // and the room stops being streamed
+  deckPause(on);                    // and the module holds where it is
+  const btn = document.getElementById('pause');
+  const lab = document.getElementById('pause-label');
+  if (btn) btn.setAttribute('aria-pressed', String(on));
+  if (lab) lab.textContent = on ? 'Paused — tap to carry on' : 'Pause';
+  setStatus(on ? 'Paused' : 'Connected', on ? '' : 'connected');
+  noteActivity();
+}
+
+document.getElementById('pause').addEventListener('click', () => setPaused(!sessionPaused));
+
+/* ------------------------------------------------------------------------
+   THE MUTE
+
+   Two cuts, because one is honest and the other is certain.
+
+   `track.enabled = false` stops the capture at the source, which is what
+   turns off the browser's own recording indicator — and that indicator is the
+   thing people actually trust. Returning early in the worklet handler then
+   guarantees nothing is sent even if a buffered frame arrives late.
+
+   What it does NOT do is stop the bill. The socket is still open, and the API
+   charges for the connection rather than the audio, so the meter keeps
+   running. The button says so, because a learner who assumes muting is free
+   would leave it open all afternoon.
+   ---------------------------------------------------------------------- */
+let micMuted = false;
+
+function setMuted(on) {
+  micMuted = on;
+  try {
+    if (micStream) micStream.getAudioTracks().forEach(t => { t.enabled = !on; });
+  } catch (e) {}
+  const btn = document.getElementById('mute');
+  const lab = document.getElementById('mute-label');
+  if (btn) btn.setAttribute('aria-pressed', String(on));
+  if (lab) lab.textContent = on ? 'Microphone off — tap to talk' : 'Mute microphone';
+  setStatus(on ? 'Muted' : 'Connected', on ? '' : 'connected');
+  /* Muting is deliberate activity, not silence — it must not trip the idle
+     cutoff a second later and close the session they just protected. */
+  noteActivity();
+}
+
+document.getElementById('mute').addEventListener('click', () => setMuted(!micMuted));
+
+/* ------------------------------------------------------------------------
    THE BILLING GUARD
 
    The Voice Agent API charges $4.50 an hour for as long as the WebSocket is
@@ -3389,7 +3582,8 @@ function startAt() {
 }
 
 const RATE_PER_HOUR = 4.50;
-const IDLE_CUTOFF_MS = 3 * 60 * 1000;     // 3 min of nothing at all
+const IDLE_CUTOFF_MS   = 3 * 60 * 1000;   // 3 min of nothing at all
+const PAUSED_CUTOFF_MS = 6 * 60 * 1000;   // a deliberate pause earns longer
 const HARD_CAP_MS    = 20 * 60 * 1000;    // the module is ~12 minutes
 
 let sessionStart = 0, lastActivityAt = 0, meterTimer = null;
@@ -3411,7 +3605,8 @@ function startMeter() {
     box.classList.toggle('is-warn', ms > 8 * 60000);
     box.classList.toggle('is-hot',  ms > 15 * 60000);
 
-    if (Date.now() - lastActivityAt > IDLE_CUTOFF_MS) return endSession('idle');
+    const idleAllowed = sessionPaused ? PAUSED_CUTOFF_MS : IDLE_CUTOFF_MS;
+    if (Date.now() - lastActivityAt > idleAllowed) return endSession(sessionPaused ? 'paused' : 'idle');
     if (ms > HARD_CAP_MS) return endSession('cap');
   }, 1000);
 }
@@ -3432,6 +3627,10 @@ function endSession(why) {
     showError('Session closed after 3 minutes with nothing happening — the API bills ' +
               'by the minute while it is connected, so it does not sit idle. Press Start ' +
               'to pick up where you left off.');
+  } else if (why === 'paused') {
+    showError('Session closed after 6 minutes paused. It bills by the minute while ' +
+              'connected, so it does not hold indefinitely. Press Start to carry on ' +
+              'from where you were.');
   } else if (why === 'cap') {
     showError('Session closed at the 20-minute mark. The module runs about 12 minutes, ' +
               'so this is a cost guard rather than a limit on you. Press Start to carry on.');
