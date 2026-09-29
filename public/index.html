@@ -106,6 +106,21 @@
   .err{margin-top:12px;padding:12px 14px;border-radius:8px;
        background:#fff1f2;border:1px solid rgba(190,18,60,.35);
        color:#9f1239;font-size:.84rem;line-height:1.5;}
+  /* ---- the cost meter --------------------------------------------------
+     The Voice Agent API bills for as long as the socket is OPEN — $4.50/hr,
+     idle time included, not just the time anyone is speaking. With no meter
+     there was nothing on screen saying so, and a session left open on a
+     forgotten tab quietly ran to the 30-minute cap at $2.25 a time.
+     -------------------------------------------------------------------- */
+  .meter{
+    display:flex;align-items:baseline;gap:9px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.74rem;
+    font-variant-numeric:tabular-nums;color:var(--ink-faint);
+  }
+  .meter__c{font-weight:700;color:var(--ink-dim);}
+  .meter.is-warn .meter__c{color:#b45309;}
+  .meter.is-hot  .meter__c{color:var(--bad);}
+
   [hidden]{display:none !important;}
 
   /* ---- the front door -------------------------------------------------
@@ -364,6 +379,10 @@
     <div class="control">
       <button class="mic" id="mic" type="button" hidden>Start Learning</button>
       <div class="status"><span class="dot" id="dot"></span><span id="status">Disconnected</span></div>
+      <div class="meter" id="meter" hidden>
+        <span class="meter__t" id="meter-time">0:00</span>
+        <span class="meter__c" id="meter-cost">$0.00</span>
+      </div>
       <button class="stop" id="stop" type="button" disabled>End session</button>
     </div>
 
@@ -430,7 +449,12 @@ const PHRASES = [
   [/\bpart (three|3)\b/i, 'part3'],
   [/\broute through|three parts\b/i, 'route'],
   [/\btake away|objectives\b/i, 'objectives'],
-  [/\bsummar|how you did|well done covering\b/i, 'summary']
+  [/\bsummar|how you did|well done covering\b/i, 'summary'],
+  /* The ending was missing from the net entirely. It is the one moment where
+     a tool call that does not fire is most visible — the tutor congratulating
+     someone on a certificate that is not on screen — so it gets the widest
+     match of any entry here. */
+  [/\bcertificate|your award|print it|type your name\b/i, 'certificate']
 ];
 
 /* ------------------------------------------------------------------------
@@ -2734,9 +2758,13 @@ async function connect() {
         micBtn.classList.add('is-live');
         stopBtn.disabled = false;
         muteDeckNarration();
-        showSection('welcome');
+        /* ?scene=9 opens the module anywhere — for filming a demo, or picking
+           up a part without playing the whole thing through. Falls back to the
+           welcome screen, which is the normal case. */
+        showSection(startAt() || 'welcome');
         onDoorOpen();          // the page is only worth revealing once it talks
         watchJourney();
+        startMeter();          // the clock is running from this moment
         /* Begin is grey until there is someone to hear you say it. */
         try { deckFrame.contentWindow.document.documentElement.classList.add('tutor-live'); }
         catch (e) {}
@@ -2756,6 +2784,7 @@ async function connect() {
         else partialEl.lastChild.nodeValue = msg.text || '';
         break;
       case 'transcript.user':
+        noteActivity();
         if (partialEl) { partialEl.remove(); partialEl = null; }
         if (msg.text) addLine('you', msg.text);
         break;
@@ -2797,6 +2826,7 @@ async function connect() {
         break;
 
       case 'reply.started':
+        noteActivity();
         /* THE LOOP BUG. Speech.audioSec accumulated across every reply and was
            only cleared on an interrupt, so from the second reply onward the
            clock believed there were minutes of audio still to play.
@@ -2819,6 +2849,7 @@ async function connect() {
         break;
 
       case 'input.speech.started':
+        noteActivity();
         flushPlayback();
         break;
       case 'reply.done':
@@ -2885,6 +2916,7 @@ function teardownAudio() {
 }
 function teardown() {
   ready = false;
+  stopMeter();
   clearInterval(journeyTimer); journeyTimer = null;
   Reveal.stop();
   teardownAudio();
@@ -3324,7 +3356,92 @@ deckFrame.addEventListener('load', () => {
   if (deckState(deckFrame.contentWindow)) tagEl.textContent = 'Module · ready';
 });
 
+/* ------------------------------------------------------------------------
+   THE BILLING GUARD
+
+   The Voice Agent API charges $4.50 an hour for as long as the WebSocket is
+   OPEN — explicitly "not the duration of audio sent. Idle connection time
+   counts." Nothing in here said so, nothing showed the clock, and the only
+   thing that closed a session was `beforeunload`, which does not fire for a
+   tab left open, a crashed tab, or a backgrounded phone.
+
+   So a test session abandoned half way ran silently to the 30-minute cap at
+   $2.25 a go. Three of those is a pound short of ten dollars, and it is
+   invisible the whole time.
+
+   Three guards, cheapest first:
+     1. a meter, so the cost is never invisible again;
+     2. an idle cutoff — silence with nothing happening is not a session;
+     3. a hard cap, and closing on pagehide as well as beforeunload.
+   ---------------------------------------------------------------------- */
+/* Where to open. ?scene=9 or ?at=part2_activity both work — a number is
+   matched against the SECTIONS table so the tutor's label and the deck's
+   scene can never drift apart. */
+function startAt() {
+  try {
+    const q = new URLSearchParams(location.search);
+    const at = q.get('at');
+    if (at && SECTIONS[at]) return at;
+    const n = parseInt(q.get('scene'), 10);
+    if (n) return Object.keys(SECTIONS).find(k => SECTIONS[k].scene === n) || null;
+  } catch (e) {}
+  return null;
+}
+
+const RATE_PER_HOUR = 4.50;
+const IDLE_CUTOFF_MS = 3 * 60 * 1000;     // 3 min of nothing at all
+const HARD_CAP_MS    = 20 * 60 * 1000;    // the module is ~12 minutes
+
+let sessionStart = 0, lastActivityAt = 0, meterTimer = null;
+
+function noteActivity() { lastActivityAt = Date.now(); }
+
+function startMeter() {
+  sessionStart = lastActivityAt = Date.now();
+  const box = document.getElementById('meter');
+  const tEl = document.getElementById('meter-time');
+  const cEl = document.getElementById('meter-cost');
+  box.hidden = false;
+  clearInterval(meterTimer);
+  meterTimer = setInterval(() => {
+    const ms = Date.now() - sessionStart;
+    const mins = Math.floor(ms / 60000), secs = Math.floor(ms % 60000 / 1000);
+    tEl.textContent = mins + ':' + String(secs).padStart(2, '0');
+    cEl.textContent = '$' + (ms / 3600000 * RATE_PER_HOUR).toFixed(2);
+    box.classList.toggle('is-warn', ms > 8 * 60000);
+    box.classList.toggle('is-hot',  ms > 15 * 60000);
+
+    if (Date.now() - lastActivityAt > IDLE_CUTOFF_MS) return endSession('idle');
+    if (ms > HARD_CAP_MS) return endSession('cap');
+  }, 1000);
+}
+
+function stopMeter() {
+  clearInterval(meterTimer); meterTimer = null;
+  const box = document.getElementById('meter');
+  if (box) box.hidden = true;
+}
+
+function endSession(why) {
+  stopping = true;
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    try { ws.close(1000, 'ended: ' + why); } catch (e) {}
+  }
+  teardown();
+  if (why === 'idle') {
+    showError('Session closed after 3 minutes with nothing happening — the API bills ' +
+              'by the minute while it is connected, so it does not sit idle. Press Start ' +
+              'to pick up where you left off.');
+  } else if (why === 'cap') {
+    showError('Session closed at the 20-minute mark. The module runs about 12 minutes, ' +
+              'so this is a cost guard rather than a limit on you. Press Start to carry on.');
+  }
+}
+
+/* pagehide fires in cases beforeunload does not — a backgrounded tab being
+   discarded, and mobile Safari in general. */
 window.addEventListener('beforeunload', () => { stopping = true; teardown(); });
+window.addEventListener('pagehide',     () => { stopping = true; teardown(); });
 </script>
 </body>
 </html>

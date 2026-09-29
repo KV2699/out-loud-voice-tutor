@@ -21,6 +21,7 @@ require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -32,7 +33,36 @@ const TOKEN_URL = 'https://agents.assemblyai.com/v1/token';
    opens socket" — a couple of seconds in practice. 120s is generous without
    leaving a usable token lying around in a tab that was left open. */
 const EXPIRES_IN_SECONDS = 120;
-const MAX_SESSION_SECONDS = 1800;          // 30 minutes; the module is ~12
+const MAX_SESSION_SECONDS = 1500;          /* 25 min. The browser caps itself at
+                                              20 and closes after 3 idle, so this
+                                              only ever fires if the page dies
+                                              without closing the socket — which
+                                              is exactly the case that used to
+                                              bill for the full half hour. */
+
+/* ------------------------------------------------------------------------
+   THE SESSION LEDGER
+
+   "How much did that run cost?" was unanswerable, because a successful token
+   mint was never recorded — only failures were. One token is one session, and
+   a session bills at $4.50/hr for as long as its socket stays open, so the
+   count of tokens is the only local evidence of spend there is.
+
+   Appended to server/sessions.log, which is gitignored along with the rest of
+   the private files. Nothing sensitive: a timestamp and a running count.
+   ---------------------------------------------------------------------- */
+const LEDGER = path.join(__dirname, 'sessions.log');
+let sessionCount = 0;
+try {
+  sessionCount = (fs.readFileSync(LEDGER, 'utf8').match(/\n/g) || []).length;
+} catch (e) {}
+
+function noteSession() {
+  sessionCount++;
+  const line = new Date().toISOString() + '  session #' + sessionCount + '\n';
+  try { fs.appendFileSync(LEDGER, line); } catch (e) {}
+  console.log('[session] #' + sessionCount + ' started — billing runs until the socket closes');
+}
 
 app.get('/api/token', async (_req, res) => {
   if (!API_KEY || API_KEY === 'your_key_here') {
@@ -50,6 +80,7 @@ app.get('/api/token', async (_req, res) => {
   try {
     const r = await fetch(url, { headers: { Authorization: `Bearer ${API_KEY}` } });
     const body = await r.text();
+    if (r.ok) noteSession();
 
     if (!r.ok) {
       console.error(`[token] AssemblyAI returned ${r.status}: ${body}`);

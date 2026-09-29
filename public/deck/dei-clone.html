@@ -7388,6 +7388,16 @@ const Game = {
     else Judge.setPrompt(def.prompt ? def.prompt(S) : '', def.promptLabel ? def.promptLabel(S) : '');
     syncButtons();
 
+    /* A fresh run is RUNNING, whatever the last one was doing.
+
+       Leaving this scene sets paused = true, and a Part 2 retake nulls
+       Game.run without clearing it (MODULES[2].reset does stop() + run = null).
+       So the next start() built a live run that never advanced a frame: the
+       chooser closed, the character drew once, and the game sat there frozen.
+       The arrival branch could not save it either — it only calls
+       setPaused(false) when a run ALREADY exists, and this one is brand new. */
+    this.paused = false;
+
     this.last = performance.now();
     this.loop();
   },

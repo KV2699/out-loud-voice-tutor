@@ -17,3 +17,6 @@ node_modules/
 
 # macOS noise
 .DS_Store
+
+# Local session ledger — how many billable sessions have been started
+server/sessions.log
