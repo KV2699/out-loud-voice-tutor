@@ -165,6 +165,11 @@
   .mute[aria-pressed="true"]{
     background:#fff1f2;border-color:rgba(190,18,60,.45);color:#9f1239;
   }
+  /* Held by the course, not by the learner — blue, because nothing is wrong. */
+  .mute[aria-pressed="true"].is-auto{
+    background:var(--blue-50);border-color:var(--blue-100);color:var(--blue-600);
+  }
+  .mute[aria-pressed="true"].is-auto .mute__dot{background:var(--blue-500);}
   .mute[aria-pressed="true"] .mute__dot{
     background:var(--bad);box-shadow:0 0 0 3px rgba(190,18,60,.16);
     animation:mutepulse 1.8s ease-in-out infinite;
@@ -767,6 +772,13 @@ still a good offer.
 
 Keep a rough count. Offer a method roughly every other screen, not on every
 one, and plain "anything you want to pick at?" the rest of the time.
+
+IF THEY TRY TO MOVE BEFORE YOU HAVE READ A SCREEN, say so kindly and once:
+"let me take you through this one first, then we can get into it." Then read
+it. Their microphone is closed while you read, so they cannot try again — do
+not scold them, do not repeat the reminder, and never say the same sentence
+twice in a row. When you finish, ask them something and their voice comes
+back automatically.
 
 A SCREEN IS READ IN FULL BEFORE ANYONE GOES ANYWHERE.
 The first time a screen appears you cover all of it. That applies to every
@@ -1828,14 +1840,17 @@ const Reveal = {
     if (v && typeof v.showAll === 'function') {
       setTimeout(() => { try { v.showAll(); } catch (e) {} }, 250);
     }
-    const everyPointCovered = this.items.length > 0 &&
-                              this.items.every(it => it.at !== null);
-    /* THE SAFETY VALVE. A lock that cannot be satisfied is a trap, and the
-       learner has no way out of one — they cannot click past it any more.
-       If the tutor has talked this screen through twice and the matcher still
-       is not satisfied, the matcher is wrong, not the tutor. Let them go. */
-    const talkedEnough = (this.replies || 0) >= 2;
-    if (complete && this.scene && (everyPointCovered || talkedEnough)) {
+    /* ONE completed read is enough.
+
+       This used to need every point to have been keyword-matched, or two
+       whole replies. Both are wrong: the matcher is approximate, so a
+       perfectly good read could leave the screen locked — and the learner
+       then says "begin", is refused, hears the screen again, says "begin"
+       again. That refuse-repeat-ask cycle is the loop on the cover screen.
+
+       The learner's microphone is held closed for the duration of a first
+       read now, so a completed reply IS the whole screen. Trust it. */
+    if (complete && this.scene) {
       this.heardInFull[this.scene] = true;
       renderJourney();
     }
@@ -3014,6 +3029,12 @@ async function connect() {
 
       case 'reply.started':
         noteActivity();
+        /* A screen's first read is uninterruptible, and the honest way to do
+           that is to close the microphone rather than ask her to ignore
+           things. The learner cannot talk over it, cannot skip it by saying
+           "begin" halfway, and gets the mic straight back when she asks them
+           something. */
+        if (firstReadPending() && !micMuted) { autoMuted = true; setMuted(true); }
         /* THE LOOP BUG. Speech.audioSec accumulated across every reply and was
            only cleared on an interrupt, so from the second reply onward the
            clock believed there were minutes of audio still to play.
@@ -3050,6 +3071,9 @@ async function connect() {
         break;
       case 'reply.done':
         Turn.close();
+        /* Her turn is over: give them their voice back. Only if WE took it —
+           a learner who muted themselves stays muted. */
+        if (autoMuted) { autoMuted = false; setMuted(false); }
         if (msg.status === 'interrupted') {
           flushPlayback();
           /* Talked over: this screen has NOT been heard out. */
@@ -3643,16 +3667,25 @@ document.getElementById('pause').addEventListener('click', () => setPaused(!sess
    ---------------------------------------------------------------------- */
 let micMuted = false;
 let pausedAudio = [];          // chunks held back while paused, in order
+/* Auto-mute is not the learner's mute. Theirs must survive a read; ours must
+   not override a choice they made. */
+let autoMuted = false;
 
 function setMuted(on) {
   micMuted = on;
+  /* A microphone that closes with no explanation reads as a fault. Say who
+     closed it and when it comes back. */
+  const btn0 = document.getElementById('mute');
+  if (btn0) btn0.classList.toggle('is-auto', on && autoMuted);
   try {
     if (micStream) micStream.getAudioTracks().forEach(t => { t.enabled = !on; });
   } catch (e) {}
   const btn = document.getElementById('mute');
   const lab = document.getElementById('mute-label');
   if (btn) btn.setAttribute('aria-pressed', String(on));
-  if (lab) lab.textContent = on ? 'Microphone off — tap to talk' : 'Mute microphone';
+  if (lab) lab.textContent = !on ? 'Mute microphone'
+          : (autoMuted ? 'Listening to Ada — your mic returns when she asks'
+                       : 'Microphone off — tap to talk');
   setStatus(on ? 'Muted' : 'Connected', on ? '' : 'connected');
   /* Muting is deliberate activity, not silence — it must not trip the idle
      cutoff a second later and close the session they just protected. */
@@ -3708,6 +3741,21 @@ const PAUSED_CUTOFF_MS = 6 * 60 * 1000;   // a deliberate pause earns longer
 const HARD_CAP_MS    = 35 * 60 * 1000;    // the course runs about 30 minutes
 
 let sessionStart = 0, lastActivityAt = 0, meterTimer = null;
+
+/* About to read a screen for the first time.
+
+   Deliberately does NOT ask whether speech is already playing — at the moment
+   reply.started arrives none has, so testing for it meant the auto-mute never
+   fired and the learner could still talk over the intro. A reply starting on
+   an unheard screen IS the first read; that is all this needs to know. */
+function firstReadPending() {
+  try {
+    const st = deckState(deckFrame.contentWindow);
+    if (!st) return false;
+    if (ACTIVITY_SCENES.indexOf(st.scene) !== -1) return false;
+    return !Reveal.heardInFull[st.scene] && Reveal.items.length > 0;
+  } catch (e) { return false; }
+}
 
 /* True while a screen is being read for the very first time. */
 function firstReadRunning() {
