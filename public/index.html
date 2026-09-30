@@ -3448,7 +3448,10 @@ function refreshCue() {
   cueEl.hidden = !text;
   cueEl.classList.toggle('is-soft', /^Say "(Inclusive|True|A)/.test(text));
 }
-setInterval(() => { refreshCue(); renderQuiet(); blankScreenNet(); }, 1600);
+setInterval(() => { refreshCue(); renderQuiet(); }, 1600);
+  /* Its own, faster tick: a blank screen is the one thing a learner should
+     never be looking at while we get round to checking. */
+  setInterval(blankScreenNet, 400);
 
 stopBtn.addEventListener('click', () => {
   stopping = true;
@@ -3623,14 +3626,31 @@ function blankScreenNet() {
     if (!ready) return;
     const v = deckVoice(); if (!v || !v.list) return;
     const hidden = v.list().filter(it => !it.shown).length;
-    const working = !!Reveal.ticker;
-    if (hidden > 0 && !working) {
-      if (!blankSince) blankSince = Date.now();
-      else if (Date.now() - blankSince > 2500) {
-        blankSince = 0;
-        try { v.showAll(); } catch (e) {}
-      }
-    } else blankSince = 0;
+    if (!hidden) { blankSince = 0; return; }
+
+    /* Two different situations, and they deserve very different patience.
+
+       If Ada is mid-reply the slide is filling in as she speaks — that is the
+       design, and interrupting it would dump the whole screen in front of
+       someone who is being talked through it. Leave it alone.
+
+       If nothing is coming, there is nothing to wait FOR. The old net sat for
+       2.5s and only looked every 1.6s, so a jumped-to scene could show its
+       heading over white for four seconds. Fill it almost at once. */
+    /* NOT Reveal.ticker. A ticker is armed the moment a scene mounts and keeps
+       running whether or not anyone is talking — treating it as "speech is
+       coming" is what kept a jumped-to scene blank for nearly three seconds
+       while a ticker released nothing. Ask about the AUDIO instead, which is
+       the thing actually worth waiting for. */
+    const speaking = (typeof Turn !== 'undefined' && Turn.inFlight) ||
+                     (typeof Speech !== 'undefined' && !Speech.done());
+    if (speaking) { blankSince = 0; return; }
+
+    if (!blankSince) blankSince = Date.now();
+    else if (Date.now() - blankSince > 600) {
+      blankSince = 0;
+      try { v.showAll(); } catch (e) {}
+    }
   } catch (e) {}
 }
 
