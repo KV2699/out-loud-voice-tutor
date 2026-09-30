@@ -2691,8 +2691,23 @@ function playChunk(int16) {
   /* Keep the audio and its slot, not just the node. Pause has to work out
      which chunks have not been heard yet, and a bare BufferSource cannot
      answer that. */
-  scheduled.push({ src: src, at: nextPlayAt - buf.duration, pcm: int16 });
-  src.onended = () => { scheduled = scheduled.filter(s => s !== src); };
+  /* The entry, not the node — and onended has to remove THE ENTRY.
+
+     This used to filter by `s !== src`, which was right when the array held
+     bare sources. Once it started holding {src, at, pcm} wrappers that test
+     could never match, so nothing was ever removed: every chunk of every
+     reply stayed in the array with its PCM attached, for the whole session.
+     Each flush then walked thousands of dead entries and the audio stuttered
+     and dropped out part way through a scene, worse the longer you stayed.
+
+     The pcm is released as soon as it has been heard — pause only ever needs
+     the chunks that have NOT played yet. */
+  const entry = { src: src, at: nextPlayAt - buf.duration, pcm: int16 };
+  scheduled.push(entry);
+  src.onended = () => {
+    entry.pcm = null;
+    scheduled = scheduled.filter(s => s !== entry);
+  };
 }
 function flushPlayback() {
   scheduled.forEach(s => { try { s.src.stop(); } catch (e) {} });
