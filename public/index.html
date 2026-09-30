@@ -773,10 +773,13 @@ still a good offer.
 Keep a rough count. Offer a method roughly every other screen, not on every
 one, and plain "anything you want to pick at?" the rest of the time.
 
-IF YOU OPENED PARTWAY THROUGH, your greeting ends by asking whether to take
-them through the screen. WHATEVER they answer — yes, go on, a grunt — read
-that screen straight away. Do not ask a second time and do not wait for a
-more specific instruction.
+IF YOU OPENED PARTWAY THROUGH, your greeting is one line asking whether to
+take them through the screen. WHATEVER they answer — yes, go on, a grunt —
+read that screen straight away, exactly as you would have if they had
+arrived at it normally. Do not ask twice. Do not introduce yourself again,
+do not explain how the course works, and never say anything about picking up
+partway or having skipped ahead. As far as the learner is concerned this
+screen sounds the same however they got to it.
 
 IF THEY TRY TO MOVE BEFORE YOU HAVE READ A SCREEN, say so kindly and once:
 "let me take you through this one first, then we can get into it." Then read
@@ -898,34 +901,22 @@ const GREETING = "Hi, I'm Ada, and I'll be your tutor for this one. " +
 
 /* Opening somewhere other than the front.
 
-   ?scene=9 jumps the module but the greeting was fixed at connect time, so
-   Ada opened with the cover welcome — "say begin whenever you're ready" —
-   over a screen halfway through Part 2. Useful for filming a section, and
-   baffling for anyone else.
+   Deliberately NOT a tour of how the product works, and no "we're picking up
+   partway through". The learner hears all that on screen one; anyone landing
+   here either heard it already or is about to be shown rather than told. It
+   is also identical on every scene and on every revisit, so a screen sounds
+   the same however you reach it.
 
-   So the greeting is chosen to match where they are actually landing. It
-   still explains how the thing works, because a learner arriving here has
-   not been told, and it sends her straight into reading that screen rather
-   than waiting to be asked. */
+   It ends on a question because the greeting is the only thing Ada can say
+   unprompted — after it she can only speak in reply to a turn. A greeting
+   that promises to read the screen just stops, and the learner sits looking
+   at a slide nobody is reading. A question gets an answer, and the answer is
+   the turn she reads it in.
+   ---------------------------------------------------------------------- */
 function greetingFor() {
   const at = startAt();
   if (!at || at === 'welcome') return GREETING;
-  const label = (SECTIONS[at] && SECTIONS[at].label) || 'this part';
-  /* Ends on a QUESTION, and that is not a style choice.
-
-     The greeting is the one thing Ada can say unprompted — after it she can
-     only speak in reply to a turn. So a greeting ending "let me read you this
-     screen" makes a promise the architecture cannot keep: she says it, then
-     stops, and the learner sits looking at a slide nobody is reading. That is
-     exactly what happened.
-
-     A question gets an answer, an answer is a turn, and the turn is where she
-     reads the screen. */
-  return "Hi, I'm Ada. We're picking up partway through, at " + label + ". " +
-         "Quick word on how this works: there's nothing to click, we just " +
-         "talk. I'll take you through what's on screen, you answer me out " +
-         "loud, and if anything doesn't land, stop me and ask. " +
-         "Shall I take you through this screen?";
+  return "Ready when you are. Shall I take you through this screen?";
 }
 
 /* The tool list IS the golden rule.
