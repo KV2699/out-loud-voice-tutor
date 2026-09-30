@@ -2489,6 +2489,12 @@ function showSection(name) {
     }, 1200);
   } catch (e) { return false; }
 
+  /* The deck HIDES a scene's content on mount and waits for a voice to bring
+     it back. advance() arms that machinery; this path did not — so ?scene=N
+     and "skip me to the quiz" both landed on a screen showing its heading and
+     nothing else, permanently. Anything that mounts a scene has to arm it. */
+  setTimeout(() => { try { Reveal.begin(); } catch (e) {} }, 1300);
+
   currentSection = name;
   tagEl.textContent = target.label;
   tagEl.classList.add('is-driven');
@@ -3442,7 +3448,7 @@ function refreshCue() {
   cueEl.hidden = !text;
   cueEl.classList.toggle('is-soft', /^Say "(Inclusive|True|A)/.test(text));
 }
-setInterval(() => { refreshCue(); renderQuiet(); }, 1600);
+setInterval(() => { refreshCue(); renderQuiet(); blankScreenNet(); }, 1600);
 
 stopBtn.addEventListener('click', () => {
   stopping = true;
@@ -3600,6 +3606,32 @@ function firstReadRunning() {
     if (ACTIVITY_SCENES.indexOf(st.scene) !== -1) return false;   // activities interrupt freely
     return !Reveal.heardInFull[st.scene] && Reveal.items.length > 0 && !Speech.done();
   } catch (e) { return false; }
+}
+
+/* THE BLANK-SCREEN NET.
+
+   The deck hides on mount, so any route into a scene that forgets to arm the
+   reveal leaves the learner staring at a heading over white. That has now
+   happened once, on the one path nobody tested — which means the fix is not
+   "arm it there too", it is "never let a scene stay blank".
+
+   So: if a scene has been sitting with hidden content and nothing is running
+   to release it, show the lot. Late and unanimated beats absent. */
+let blankSince = 0;
+function blankScreenNet() {
+  try {
+    if (!ready) return;
+    const v = deckVoice(); if (!v || !v.list) return;
+    const hidden = v.list().filter(it => !it.shown).length;
+    const working = !!Reveal.ticker;
+    if (hidden > 0 && !working) {
+      if (!blankSince) blankSince = Date.now();
+      else if (Date.now() - blankSince > 2500) {
+        blankSince = 0;
+        try { v.showAll(); } catch (e) {}
+      }
+    } else blankSince = 0;
+  } catch (e) {}
 }
 
 function noteActivity() { lastActivityAt = Date.now(); hideStillThere(); }
