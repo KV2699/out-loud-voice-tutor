@@ -2581,14 +2581,42 @@ function playChunk(int16) {
   nextPlayAt += buf.duration;
   Speech.audioSec += buf.duration;      // total speech received for this reply
 
-  scheduled.push(src);
+  /* Keep the audio and its slot, not just the node. Pause has to work out
+     which chunks have not been heard yet, and a bare BufferSource cannot
+     answer that. */
+  scheduled.push({ src: src, at: nextPlayAt - buf.duration, pcm: int16 });
   src.onended = () => { scheduled = scheduled.filter(s => s !== src); };
 }
 function flushPlayback() {
-  scheduled.forEach(s => { try { s.stop(); } catch (e) {} });
+  scheduled.forEach(s => { try { s.src.stop(); } catch (e) {} });
   scheduled = [];
   nextPlayAt = 0;
   Speech.reset();
+}
+
+/* Stop, but keep what has not been heard.
+
+   The API streams audio FASTER than real time, so two seconds into a ten
+   second reply the whole ten seconds is already scheduled inside the
+   AudioContext — nothing further is arriving to hold back. flushPlayback
+   destroys all of it, which is why pausing mid-sentence left Ada mute: there
+   was nothing in the network to queue, and the future she had already been
+   given had been thrown away.
+
+   So: stop everything, and put the chunks whose slot has not come round yet
+   back on the queue. The chunk mid-flight is lost — a tenth of a second — and
+   everything after it survives. */
+function holdPlayback() {
+  const now = outCtx ? outCtx.currentTime : 0;
+  const keep = [];
+  scheduled.forEach(s => {
+    try { s.src.stop(); } catch (e) {}
+    if (s.at >= now - 0.02 && s.pcm) keep.push(s.pcm);
+  });
+  scheduled = [];
+  nextPlayAt = 0;
+  Speech.reset();
+  return keep;
 }
 
 /* ---------- microphone --------------------------------------------------
@@ -3513,9 +3541,9 @@ function setPaused(on) {
   const was = sessionPaused;
   sessionPaused = on;
   if (on) {
-    /* Stop what is already scheduled. Anything arriving after this moment is
-       queued by playChunk rather than played. */
-    flushPlayback();
+    /* Take back everything not yet heard, and hold it. Anything that arrives
+       after this moment is queued by playChunk on top. */
+    pausedAudio = holdPlayback().concat(pausedAudio);
   } else if (was) {
     /* Pick up exactly where she stopped. nextPlayAt is reset so the held
        chunks schedule from now rather than from a timestamp that has passed. */
