@@ -33,8 +33,8 @@ const TOKEN_URL = 'https://agents.assemblyai.com/v1/token';
    opens socket" — a couple of seconds in practice. 120s is generous without
    leaving a usable token lying around in a tab that was left open. */
 const EXPIRES_IN_SECONDS = 120;
-const MAX_SESSION_SECONDS = 1500;          /* 25 min. The browser caps itself at
-                                              20 and closes after 3 idle, so this
+const MAX_SESSION_SECONDS = 2400;          /* 40 min. The browser caps itself at
+                                              35 and asks before closing on idle, so this
                                               only ever fires if the page dies
                                               without closing the socket — which
                                               is exactly the case that used to

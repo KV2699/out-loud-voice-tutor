@@ -109,6 +109,14 @@
   .err{margin-top:12px;padding:12px 14px;border-radius:8px;
        background:#fff1f2;border:1px solid rgba(190,18,60,.35);
        color:#9f1239;font-size:.84rem;line-height:1.5;}
+  .stillthere{
+    width:100%;padding:11px 16px;border-radius:999px;min-height:44px;cursor:pointer;
+    background:#fff7ed;border:1px solid rgba(180,83,9,.4);color:#9a3412;
+    font-size:.84rem;font-weight:600;font-variant-numeric:tabular-nums;
+  }
+  .stillthere:hover{background:#ffedd5;}
+  .stillthere:focus-visible{outline:3px solid var(--blue-400);outline-offset:3px;}
+
   /* ---- pause ------------------------------------------------------------
      Stopping the tutor mid-sentence needed a control. Without one the only
      way to make it stop talking was to talk over it, which is fine as
@@ -521,6 +529,13 @@ const SECTIONS = {
   welcome:         { scene: 1,  label: 'Welcome' },
   objectives:      { scene: 2,  label: "What you'll take away" },
   route:           { scene: 3,  label: 'Your route through' },
+  /* The in-between screens had no entry, so ?scene=5 silently opened the
+     welcome instead — which looks like the link is broken. Every scene the
+     course has is addressable now. */
+  part1_brief:     { scene: 5,  label: 'Part 1 · Activity one' },
+  part2_brief:     { scene: 8,  label: 'Part 2 · Walk the rules brief' },
+  part3_brief:     { scene: 11, label: 'Part 3 · Three questions' },
+  done:            { scene: 14, label: 'Complete' },
   part1:           { scene: 4,  label: 'Part 1 · Three words' },
   part1_activity:  { scene: 6,  label: 'Part 1 · Sort the situations' },
   part2:           { scene: 7,  label: 'Part 2 · Where it shows up' },
@@ -782,79 +797,6 @@ younger" during shortlisting.
 The thread: the three worth flagging all sort people by something other than
 the work itself — background, age, or opinion.
 
-WRAP-UP FOR PART 1 — ELABORATIVE INTERROGATION.
-This is a real study technique: you make the learner explain WHY a fact is
-true, because a reason you generated yourself is far easier to retrieve than
-one you were handed. Name it to them — say you are going to use it and why —
-then ask one "why" question and wait: "Why does sorting people by background
-count as exclusion even when nobody meant harm?" Listen, then add the one
-thing they missed. One question. Do not turn it into a second quiz.
-
-PART 2 — STEREOTYPING AND THE BEHAVIOUR RULES  (show_section: part2)
-- Almost nobody sets out to stereotype. It arrives as a shortcut: a
-  sensible-sounding reason, reached quickly, by someone with too much on.
-  That is why it survives — it never announces itself and it is always
-  defensible after the fact.
-- It shows up in hiring (who "fits"), rostering (who is asked to be
-  flexible), and the good work (who gets the project that gets noticed).
-
-Activity (part2_activity) — six true/false statements. The learner says
-True or False and you call answer_statement; their character then walks over
-and strikes that block, so the answer is visible before it is scored.
- 1. "If nobody complained, the decision was probably fine." FALSE. Silence is
-    the least reliable signal you have; the people most affected by a decision
-    are usually the least safe to challenge it.
- 2. "Describing a role as needing a safe pair of hands can quietly screen out
-    newer staff." TRUE. Phrases about temperament stand in for length of
-    service, and nobody has to say so out loud.
- 3. "Rotating who takes the notes in meetings is a fair thing to formalise."
-    TRUE. Left informal it lands on the same people. A rota costs nothing.
- 4. "Giving the high-profile project to whoever asks for it is the fairest
-    method." FALSE. It rewards confidence, not capability.
- 5. "You should raise a concern about a colleague's comment even if they
-    clearly meant no harm." TRUE. Intent and effect are different things.
- 6. "Adjusting a process for one person's access needs is special treatment."
-    FALSE. It is the definition of equity.
-
-WRAP-UP FOR PART 2 — A KEYWORD MNEMONIC.
-A different technique on purpose: a short peg that hangs several ideas on one
-word you can actually recall under pressure. Give them HFG — Hiring, Flexible,
-Good work — the three places a shortcut hides: who "fits", who is always asked
-to be flexible, and who gets the work that gets noticed. Say the word, say
-what each letter opens, then ask them to say it back to you once. Tell them it
-is a peg and that saying it aloud is what makes it stick.
-
-PART 3 — WHAT TO DO IN THE MOMENT  (show_section: part3)
-Three small moves cover almost every case, and none need a meeting:
- - NAME IT. "That was Priya's idea." One sentence, in the room, while it
-   still counts.
- - ASK IT. "What do we mean by fit?" A question is harder to dismiss than an
-   objection.
- - CHANGE THE DEFAULT. A rota, a rule, a template — anything that stops it
-   depending on who remembers.
-
-Knowledge check (part3_quiz) — three questions. The learner says A, B or C
-and you call answer_question.
- 1. What separates equity from equality? Equality distributes the same thing
-    to everyone. Equity starts from the outcome and works backwards.
- 2. What is the strongest evidence a team is genuinely inclusive? That people
-    contribute openly without first editing what they were going to say. A
-    headcount report is diversity; a published policy is intent.
- 3. A colleague's suggestion is passed over, then praised when someone else
-    repeats it. What is most useful? Name the original contributor in the
-    moment.
-
-WRAP-UP FOR PART 3 — RETRIEVAL PRACTICE, SPACED.
-The best evidenced of the three, so it closes the course. Pulling a fact back
-out of your own head is what fixes it; re-reading it does almost nothing. Say
-that, then close the module by asking them to name the three moves with
-nothing on screen to help — no options, no prompting. Whatever they get, fill
-in the gap, then give them the spacing instruction out loud: try to recall all
-three again tomorrow, and once more at the end of the week. Tell them the gap
-is the active ingredient, not the repetition.
-
-Finish on show_section: summary.
-
 HOW YOU SOUND
 You are being spoken aloud, so write for the ear, not the page.
 - Short sentences. Full stops, not semicolons and not dashes stacked up.
@@ -872,6 +814,9 @@ You are being spoken aloud, so write for the ear, not the page.
 - Two or three sentences, then a natural stop. Give them somewhere to
   interrupt you — they are meant to be able to.
 - Numbers and letters as words: "part one", not "part 1"; "option A" is fine.
+
+AT THE END OF EACH PART you will be handed that part's wrap-up, word for
+word, at the moment it is due. Do not invent one early.
 
 HOW TO TUTOR
 - Teach conversationally. Never read a list at the learner.
@@ -1081,7 +1026,11 @@ function addLine(who, text, partial) {
   }
   el.appendChild(document.createTextNode(text));
   logEl.appendChild(el);
-  logEl.scrollTop = logEl.scrollHeight;
+  /* Reading scrollHeight right after appending forces a synchronous layout.
+     Defer it, and only follow if they were already at the bottom — otherwise
+     it yanks the view away from someone scrolled up reading. */
+  const atBottom = logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 60;
+  if (atBottom) requestAnimationFrame(() => { logEl.scrollTop = logEl.scrollHeight; });
   return el;
 }
 
@@ -1790,6 +1739,7 @@ const Reveal = {
       }));
     } catch (e) { this.items = []; }
 
+    this._lastLen = 0;
     this.backstop = setTimeout(() => this.finish(), 12000);
     this.ticker = setInterval(() => this.release(), 110);
   },
@@ -1803,7 +1753,15 @@ const Reveal = {
      it yet — the voice has not got there. */
   heard(textSoFar) {
     if (!this.items.length) return;
-    this.spoken = (textSoFar || '').toLowerCase();
+    /* Deltas arrive many times a second and each carries the WHOLE reply so
+       far, so rescanning on every one re-reads the same text over and over —
+       on an older machine that is main-thread time the transcript and the
+       audio are both waiting for. A few characters cannot move a word
+       boundary, so wait until it is worth looking again. */
+    const txt = textSoFar || '';
+    if (txt.length - (this._lastLen || 0) < 12 && txt.length >= (this._lastLen || 0)) return;
+    this._lastLen = txt.length;
+    this.spoken = txt.toLowerCase();
     Speech.chars = this.spoken.length;
 
     for (let k = 0; k < this.items.length; k++) {
@@ -1961,7 +1919,7 @@ function watchJourney() {
         Stop.clear();
       }
     } catch (e) {}
-  }, 700);
+  }, 2000);
 }
 
 /* ------------------------------------------------------------------------
@@ -2951,7 +2909,16 @@ async function connect() {
 
       case 'input.speech.started':
         noteActivity();
-        flushPlayback();
+        /* A screen's FIRST read is not interruptible. Talking over it — a
+           cough, a "yep", thinking out loud — used to cut Ada off mid-point,
+           and the screen then stayed locked because it had not been heard
+           out. So on a first read the speech keeps playing and the learner
+           simply gets heard afterwards.
+
+           Once the screen HAS been heard in full, barge-in comes back: from
+           then on cutting her off is a feature, because they already know
+           what she was saying. */
+        if (!firstReadRunning()) flushPlayback();
         break;
       case 'reply.done':
         Turn.close();
@@ -3447,7 +3414,7 @@ function refreshCue() {
   cueEl.hidden = !text;
   cueEl.classList.toggle('is-soft', /^Say "(Inclusive|True|A)/.test(text));
 }
-setInterval(() => { refreshCue(); renderQuiet(); }, 900);
+setInterval(() => { refreshCue(); renderQuiet(); }, 1600);
 
 stopBtn.addEventListener('click', () => {
   stopping = true;
@@ -3582,13 +3549,55 @@ function startAt() {
 }
 
 const RATE_PER_HOUR = 4.50;
-const IDLE_CUTOFF_MS   = 3 * 60 * 1000;   // 3 min of nothing at all
+/* Three minutes was wrong, and it closed on a learner who was thinking.
+
+   The clock restarts when ADA stops talking, so silence is the normal state of
+   someone reading a screen and working out their answer — which is the exact
+   behaviour this course is built to encourage. Closing on it, and then saying
+   "nothing happening", told them off for doing the right thing.
+
+   So: longer, and it never closes without asking first. */
+const IDLE_CUTOFF_MS   = 6 * 60 * 1000;   // 6 min of silence before the question
+const IDLE_WARN_MS     = 4 * 60 * 1000;   // ...and a visible ask at 4
 const PAUSED_CUTOFF_MS = 6 * 60 * 1000;   // a deliberate pause earns longer
-const HARD_CAP_MS    = 20 * 60 * 1000;    // the module is ~12 minutes
+const HARD_CAP_MS    = 35 * 60 * 1000;    // the course runs about 30 minutes
 
 let sessionStart = 0, lastActivityAt = 0, meterTimer = null;
 
-function noteActivity() { lastActivityAt = Date.now(); }
+/* True while a screen is being read for the very first time. */
+function firstReadRunning() {
+  try {
+    const st = deckState(deckFrame.contentWindow);
+    if (!st) return false;
+    if (ACTIVITY_SCENES.indexOf(st.scene) !== -1) return false;   // activities interrupt freely
+    return !Reveal.heardInFull[st.scene] && Reveal.items.length > 0 && !Speech.done();
+  } catch (e) { return false; }
+}
+
+function noteActivity() { lastActivityAt = Date.now(); hideStillThere(); }
+
+/* A countdown the learner can stop. It is deliberately a button rather than a
+   notice: the session must never close on someone who is still there, and the
+   only way to know they are still there is to let them say so. */
+function showStillThere(msLeft) {
+  let box = document.getElementById('stillthere');
+  if (!box) {
+    box = document.createElement('button');
+    box.id = 'stillthere';
+    box.type = 'button';
+    box.className = 'stillthere';
+    box.addEventListener('click', noteActivity);
+    const c = document.querySelector('.control');
+    if (c) c.appendChild(box); else return;
+  }
+  box.hidden = false;
+  box.textContent = 'Still there? Tap to stay — closing in ' +
+                    Math.max(0, Math.ceil(msLeft / 1000)) + 's';
+}
+function hideStillThere() {
+  const box = document.getElementById('stillthere');
+  if (box) box.hidden = true;
+}
 
 function startMeter() {
   sessionStart = lastActivityAt = Date.now();
@@ -3605,8 +3614,13 @@ function startMeter() {
     box.classList.toggle('is-warn', ms > 8 * 60000);
     box.classList.toggle('is-hot',  ms > 15 * 60000);
 
+    const quiet = Date.now() - lastActivityAt;
     const idleAllowed = sessionPaused ? PAUSED_CUTOFF_MS : IDLE_CUTOFF_MS;
-    if (Date.now() - lastActivityAt > idleAllowed) return endSession(sessionPaused ? 'paused' : 'idle');
+    /* Ask before closing. Nobody should lose a session without a chance to
+       say they are still there. */
+    if (!sessionPaused && quiet > IDLE_WARN_MS) showStillThere(idleAllowed - quiet);
+    else hideStillThere();
+    if (quiet > idleAllowed) return endSession(sessionPaused ? 'paused' : 'idle');
     if (ms > HARD_CAP_MS) return endSession('cap');
   }, 1000);
 }
@@ -3624,15 +3638,15 @@ function endSession(why) {
   }
   teardown();
   if (why === 'idle') {
-    showError('Session closed after 3 minutes with nothing happening — the API bills ' +
-              'by the minute while it is connected, so it does not sit idle. Press Start ' +
-              'to pick up where you left off.');
+    showError('Session closed after a long quiet spell. It bills by the minute while ' +
+              'it is connected, so it does not hold open indefinitely — nothing has ' +
+              'been lost. Press Start to pick up where you left off.');
   } else if (why === 'paused') {
     showError('Session closed after 6 minutes paused. It bills by the minute while ' +
               'connected, so it does not hold indefinitely. Press Start to carry on ' +
               'from where you were.');
   } else if (why === 'cap') {
-    showError('Session closed at the 20-minute mark. The module runs about 12 minutes, ' +
+    showError('Session closed at the 35-minute mark. The course runs about 30 minutes, ' +
               'so this is a cost guard rather than a limit on you. Press Start to carry on.');
   }
 }
