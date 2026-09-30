@@ -2604,35 +2604,45 @@ body:has(#scene-1.is-active) .chev{display:none !important;}
   display: flex; flex-direction: column; align-items: center;
   justify-content: center;
   text-align: center;
-  padding: 5cqw 7cqw;
+  /* One value, both axes. cqw is width-relative, so 6cqw down and 6cqw
+     across are the same number of pixels — which is what "the same margin all
+     the way round" actually means on a landscape sheet. */
+  /* 6cqw all round made the sheet taller than the stage and it rode up over
+     the breadcrumb. 4.4cqw keeps the margin visually equal and fits. */
+  padding: 4.4cqw;
   color: #141414;
 }
+
+/* One measure for every block inside, so the left and right edges of the
+   modules and the footer line up with each other rather than each having its
+   own idea of where the column is. */
+.cert__inner > * { --cert-measure: 64cqw; }
 
 .cert__eyebrow {
   font-size: 2.3cqw; font-weight: 600;
   letter-spacing: .26em; text-transform: uppercase;
   color: var(--coral-500);
-  margin: 0 0 3cqw;
+  margin: 0 0 2.2cqw;
 }
 .cert__awarded,
 .cert__for { font-size: 2.2cqw; color: var(--text-faint); margin: 0; }
 .cert__name {
   font-size: 6.4cqw; font-weight: 700; line-height: 1.05;
   letter-spacing: -.02em;
-  margin: 1.2cqw 0 1.6cqw;
+  margin: .9cqw 0 1.1cqw;
   text-wrap: balance;
 }
 .cert__name.is-placeholder { color: rgba(20,20,20,.22); font-weight: 600; }
 .cert__course {
   font-size: 3.8cqw; font-weight: 700; letter-spacing: -.01em;
   color: var(--coral-500);
-  margin: .8cqw 0 0;
+  margin: .6cqw 0 0;
 }
 
 /* ---- the three parts ---- */
 .cert__modules {
-  list-style: none; margin: 3.2cqw 0 0; padding: 0;
-  width: 100%; max-width: 62cqw;
+  list-style: none; margin: 2.6cqw 0 0; padding: 0;
+  width: 100%; max-width: var(--cert-measure, 64cqw);
   display: grid; gap: 1cqw;
 }
 .cert__mod {
@@ -2651,11 +2661,15 @@ body:has(#scene-1.is-active) .chev{display:none !important;}
 .cert__mod.is-open .cert__mod-s { font-weight: 400; font-style: italic; }
 
 /* ---- date, seal, score ---- */
+/* Two columns now the seal has gone — date left, score right, and the space
+   it used to occupy goes back to the sheet. */
 .cert__foot {
-  margin-top: 3.4cqw;
-  width: 100%; max-width: 62cqw;
-  display: grid; grid-template-columns: 1fr auto 1fr;
-  align-items: center; gap: 2cqw;
+  margin-top: 2.6cqw;
+  width: 100%; max-width: var(--cert-measure, 64cqw);
+  display: grid; grid-template-columns: 1fr 1fr;
+  align-items: baseline; gap: 2cqw;
+  padding-top: 1.8cqw;
+  border-top: 1px solid rgba(20,20,20,.12);
 }
 .cert__date { text-align: left; }
 .cert__score { text-align: right; }
@@ -2668,10 +2682,6 @@ body:has(#scene-1.is-active) .chev{display:none !important;}
    two lines on a certificate reads as a mistake. */
 .cert__foot-v { display: block; font-size: 2.4cqw; font-weight: 600; white-space: nowrap; }
 
-.cert__seal { width: 11cqw; }
-.cert__seal svg { width: 100%; height: auto; display: block; }
-.cert__seal-ring { fill: none; stroke: var(--coral-500); stroke-width: 2.4; }
-.cert__seal-ring--in { stroke: rgba(var(--coral-rgb), .4); stroke-width: 1.2; }
 .cert__seal-tick {
   fill: none; stroke: var(--coral-500);
   stroke-width: 6; stroke-linecap: round; stroke-linejoin: round;
@@ -3348,9 +3358,12 @@ body:has(#scene-1.is-active) .chev{display:none !important;}
 
         <!-- Two rules that draw themselves. preserveAspectRatio is none so the
              border tracks the box rather than keeping the viewBox's shape. -->
+        <!-- The box carries aspect-ratio 1000/620, so the viewBox scales
+             uniformly and an equal inset in viewBox units IS an equal inset on
+             screen. Measured: 10px on every side at stage size. -->
         <svg class="cert__rule" viewBox="0 0 1000 620" preserveAspectRatio="none" aria-hidden="true">
-          <rect class="cert__rule-outer" x="14" y="14" width="972" height="592" rx="6"/>
-          <rect class="cert__rule-inner" x="30" y="30" width="940" height="560" rx="3"/>
+          <rect class="cert__rule-outer" x="22" y="22" width="956" height="576" rx="5"/>
+          <rect class="cert__rule-inner" x="40" y="40" width="920" height="540" rx="3"/>
         </svg>
 
         <div class="cert__inner">
@@ -3367,13 +3380,6 @@ body:has(#scene-1.is-active) .chev{display:none !important;}
             <div class="cert__date">
               <span class="cert__foot-k">Awarded</span>
               <span class="cert__foot-v" id="cert-date">&mdash;</span>
-            </div>
-            <div class="cert__seal" aria-hidden="true">
-              <svg viewBox="0 0 120 120">
-                <circle class="cert__seal-ring" cx="60" cy="60" r="52"/>
-                <circle class="cert__seal-ring cert__seal-ring--in" cx="60" cy="60" r="43"/>
-                <path class="cert__seal-tick" d="M40 61.5 53 74.5 81 46"/>
-              </svg>
             </div>
             <div class="cert__score">
               <span class="cert__foot-k">Across the module</span>
