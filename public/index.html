@@ -2551,18 +2551,22 @@ function int16ToB64(int16) {
    ---------------------------------------------------------------------- */
 function playChunk(int16) {
   if (!outCtx) return;
-  /* Paused means paused.
+  /* Paused means paused — but HELD, not thrown away.
 
-     flushPlayback() stops what is ALREADY scheduled, and that was all pause
-     did — so the socket kept streaming, every arriving chunk was scheduled
-     afresh, and Ada carried on talking through a button that claimed to have
-     stopped her. Dropping the audio here is what actually makes it silent.
+     Dropping the audio did make her silent, and it made the pause useless:
+     the reply carries on completing server-side while nothing is playing, so
+     on resume there is nothing left to hear. She just stays quiet, and the
+     learner is stranded on a screen they cannot leave until she has finished
+     a sentence they never heard.
 
-     The dropped speech is not recovered on resume: she goes quiet, and picks
-     up when the learner next says something. That is what a pause should do —
-     replaying half a sentence into a room someone just came back to is worse
-     than silence. */
-  if (sessionPaused) return;
+     So the chunks queue instead, and resume plays them from exactly where it
+     stopped. A reply is at most half a minute of audio, so the queue is
+     naturally small; the cap is only there for a pause that outlives its
+     reply. */
+  if (sessionPaused) {
+    if (pausedAudio.length < 600) pausedAudio.push(int16);
+    return;
+  }
   const buf = outCtx.createBuffer(1, int16.length, RATE);
   const ch = buf.getChannelData(0);
   for (let i = 0; i < int16.length; i++) ch[i] = int16[i] / 32768;
@@ -3021,6 +3025,7 @@ function teardown() {
   stopMeter();
   micMuted = false;
   sessionPaused = false;
+  pausedAudio = [];
   const pb = document.getElementById('pause');
   if (pb) { pb.disabled = true; pb.setAttribute('aria-pressed', 'false'); }
   const pl = document.getElementById('pause-label');
@@ -3505,8 +3510,20 @@ function deckPause(on) {
 }
 
 function setPaused(on) {
+  const was = sessionPaused;
   sessionPaused = on;
-  if (on) flushPlayback();          // drop what is queued; playChunk drops the rest
+  if (on) {
+    /* Stop what is already scheduled. Anything arriving after this moment is
+       queued by playChunk rather than played. */
+    flushPlayback();
+  } else if (was) {
+    /* Pick up exactly where she stopped. nextPlayAt is reset so the held
+       chunks schedule from now rather than from a timestamp that has passed. */
+    const held = pausedAudio;
+    pausedAudio = [];
+    nextPlayAt = 0;
+    held.forEach(c => playChunk(c));
+  }
   setMuted(on);                     // and the room stops being streamed
   deckPause(on);                    // and the module holds where it is
   const btn = document.getElementById('pause');
@@ -3535,6 +3552,7 @@ document.getElementById('pause').addEventListener('click', () => setPaused(!sess
    would leave it open all afternoon.
    ---------------------------------------------------------------------- */
 let micMuted = false;
+let pausedAudio = [];          // chunks held back while paused, in order
 
 function setMuted(on) {
   micMuted = on;
