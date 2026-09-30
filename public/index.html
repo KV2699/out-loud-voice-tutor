@@ -768,6 +768,17 @@ still a good offer.
 Keep a rough count. Offer a method roughly every other screen, not on every
 one, and plain "anything you want to pick at?" the rest of the time.
 
+A SCREEN IS READ IN FULL BEFORE ANYONE GOES ANYWHERE.
+The first time a screen appears you cover all of it. That applies to every
+way off it — continue, skip, going back, retaking. If they ask to skip while
+a screen is unfinished the tool will refuse, and that is the design, not a
+fault. Say something like "let me just finish this one and I will take you
+straight there" — then finish it and take them. Do not apologise, do not say
+anything is broken, and do not mention a lock.
+Once a screen HAS been heard out it stays unlocked for good, so from then on
+they can move anywhere they like, instantly, including back to it.
+Activities are different: they are finished, not listened to.
+
 AFTER EVERY SCENE, ASK IF THEY HAVE QUESTIONS.
 Finish each screen with a real, short invitation — "anything you want to
 pick at before you move on?" — and then WAIT. Do not talk again until they
@@ -2024,6 +2035,49 @@ const ACTIVITY_SCENES = [6, 9, 12];
        control, or the panel that appears when it is done. If neither is live,
        the activity is unfinished and advance must refuse.
    ---------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------
+   THE READ-IN-FULL GATE
+
+   Her rule, and it applies to EVERY way off a screen, not just the forward
+   one: a slide is read out in full the first time, and only then does
+   movement open up. Skipping used to slip past this because it goes through
+   show_section rather than advance — so "take me to the quiz" left the screen
+   half-said, which is the exact thing the lock exists to stop.
+
+   Once a screen has been heard out it is unlocked for good, so going back and
+   jumping around later costs nothing. Activities are exempt: they have a
+   stronger gate of their own — you cannot leave until you have finished them.
+
+   Returns a refusal to hand the agent, or null to let it through.
+   ---------------------------------------------------------------------- */
+function readGate(st, what) {
+  try {
+    if (!st) return null;
+    if (ACTIVITY_SCENES.indexOf(st.scene) !== -1) return null;
+    if (!Reveal.items.length) return null;
+    /* The ONLY thing that opens this gate is the screen having been heard
+       out. It used to also open when every point was visible — but the
+       blank-screen net makes a screen visible after a second whenever nobody
+       is speaking, so jumping in with ?scene= revealed the slide and
+       unlocked it in the same breath, and "skip" sailed straight through.
+
+       Visible is not the same as spoken. heardInFull is set by Reveal.finish
+       when a reply actually completes over this screen, which is the thing
+       being asked for. */
+    if (Reveal.heardInFull[st.scene]) return null;
+    const owed = Reveal.missing();
+    return 'NOT YET — you have not finished this screen. ' +
+      (owed > 0
+        ? 'There ' + (owed === 1 ? 'is 1 point' : 'are ' + owed + ' points') +
+          ' still to cover, and each only appears as you reach it, so they are ' +
+          'looking at a gap. Cover the rest in order, in each point\'s own words.'
+        : 'Finish what you are saying first.') +
+      ' Tell them warmly that you will take them ' + (what || 'there') +
+      ' the moment this screen is done — then finish it, ask if they have ' +
+      'questions, and go. Do not argue about it and do not repeat this twice.';
+  } catch (e) { return null; }
+}
+
 function forwardControl(doc, st) {
   const live = sel => {
     const e = doc.querySelector(sel);
@@ -2703,6 +2757,11 @@ function handleToolCall(msg) {
 
   let result;
   if (name === 'show_section') {
+    /* Skipping is a way off a screen like any other, so it answers to the
+       same gate: the first read finishes before anyone goes anywhere. */
+    const gate = readGate(deckState(deckFrame.contentWindow), 'to that part');
+    if (gate) { result = gate; }
+    else {
     /* Deliberately NOT readProgress() here. The page turn is animated, so
        reading the screen on this tick reports the screen we are LEAVING —
        handing the tutor a stale fact is what caused it to discuss a card the
@@ -2719,6 +2778,7 @@ function handleToolCall(msg) {
     } else {
       result = 'Could not show ' + args.section;
     }
+    }
   } else if (name === 'get_progress') {
     result = readProgress();
   } else if (name === 'answer_card') {
@@ -2734,9 +2794,11 @@ function handleToolCall(msg) {
   } else if (name === 'go_to_screen') {
     result = goToScreen(args.screen);
   } else if (name === 'go_back') {
-    result = goBack();
+    const gate = readGate(deckState(deckFrame.contentWindow), 'back');
+    result = gate || goBack();
   } else if (name === 'retake_part') {
-    result = retakePart(args.part);
+    const gate = readGate(deckState(deckFrame.contentWindow), 'to that part');
+    result = gate || retakePart(args.part);
   } else if (name === 'restart_activity') {
     result = restartActivity();
   } else {
