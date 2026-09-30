@@ -891,6 +891,28 @@ const GREETING = "Hi, I'm Ada, and I'll be your tutor for this one. " +
                  "When you want to move on, just say continue. " +
                  "Say begin whenever you're ready and we'll make a start.";
 
+/* Opening somewhere other than the front.
+
+   ?scene=9 jumps the module but the greeting was fixed at connect time, so
+   Ada opened with the cover welcome — "say begin whenever you're ready" —
+   over a screen halfway through Part 2. Useful for filming a section, and
+   baffling for anyone else.
+
+   So the greeting is chosen to match where they are actually landing. It
+   still explains how the thing works, because a learner arriving here has
+   not been told, and it sends her straight into reading that screen rather
+   than waiting to be asked. */
+function greetingFor() {
+  const at = startAt();
+  if (!at || at === 'welcome') return GREETING;
+  const label = (SECTIONS[at] && SECTIONS[at].label) || 'this part';
+  return "Hi, I'm Ada. We're picking up partway through, at " + label + ". " +
+         "Quick word on how this works: there's nothing to click. We just " +
+         "talk. I'll take you through what's on screen, you answer me out " +
+         "loud, and if anything doesn't land, stop me and ask. " +
+         "Let me read you this screen and then we'll get into it.";
+}
+
 /* The tool list IS the golden rule.
 
    A prompt that says "never press Continue" is a request. A tool list with
@@ -2924,7 +2946,7 @@ async function connect() {
       type: 'session.update',
       session: {
         system_prompt: plainAscii(SYSTEM_PROMPT),
-        greeting: plainAscii(GREETING),
+        greeting: plainAscii(greetingFor()),
         tools: TOOLS,
         input: {
           format: { encoding: 'audio/pcm' },
@@ -2963,7 +2985,17 @@ async function connect() {
         /* ?scene=9 opens the module anywhere — for filming a demo, or picking
            up a part without playing the whole thing through. Falls back to the
            welcome screen, which is the normal case. */
-        showSection(startAt() || 'welcome');
+        const landing = startAt();
+        showSection(landing || 'welcome');
+        /* The greeting is itself a completed reply, and if it lands after the
+           jump it would mark the arrival screen as "heard" without Ada having
+           read a word of it — unlocking a screen the learner has not been
+           taken through. Clear it once the jump has settled, so the first
+           read is still owed. */
+        if (landing) {
+          const n = SECTIONS[landing].scene;
+          setTimeout(() => { delete Reveal.heardInFull[n]; renderJourney(); }, 2200);
+        }
         onDoorOpen();          // the page is only worth revealing once it talks
         watchJourney();
         startMeter();          // the clock is running from this moment
