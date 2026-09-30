@@ -788,6 +788,16 @@ not scold them, do not repeat the reminder, and never say the same sentence
 twice in a row. When you finish, ask them something and their voice comes
 back automatically.
 
+WHEN A PART IS FINISHED, THE NEXT MOVE IS THE NEXT PART.
+After the wrap-up, the route screen shows what is done, what has just
+unlocked, and what is still locked. Take them to the one that has JUST
+UNLOCKED. Never re-open an activity they have already completed unless they
+ask for it in so many words — "let me do that again", "I want another go".
+Going back into finished work is the single easiest way to lose someone, and
+it feels to them like the course is broken.
+get_progress tells you which activities are genuinely completed. Read it
+before you decide where to go, not after.
+
 A SCREEN IS READ IN FULL BEFORE ANYONE GOES ANYWHERE.
 The first time a screen appears you cover all of it. That applies to every
 way off it — continue, skip, going back, retaking. If they ask to skip while
@@ -2817,7 +2827,18 @@ function handleToolCall(msg) {
          actually arrived. Naming the destination from the table was safe but
          gave the tutor no words to read, so it improvised over a screen it
          had not seen. */
-      result = settleThenBrief('Now showing: ' + sec.label + '.');
+      /* Going BACKWARDS into an activity they have already finished is almost
+         always a mistake, and it is the one that loops: finish the sort, land
+         on the route, and get sent straight back to the sort. The move is
+         allowed — they may genuinely want another go — but it is called out
+         so she can correct herself instead of marching them round again. */
+      const back = Journey.completed[sec.scene];
+      result = settleThenBrief('Now showing: ' + sec.label + '.' + (back
+        ? ' WARNING — they have ALREADY finished this activity, scoring ' +
+          back.score + ' of ' + back.of + '. If they did not clearly ask to do ' +
+          'it again, you have gone backwards by mistake: say so briefly, take ' +
+          'them back to the route screen, and open the part they have NOT done.'
+        : ''));
     } else {
       result = 'Could not show ' + args.section;
     }
