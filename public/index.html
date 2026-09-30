@@ -2545,6 +2545,18 @@ function int16ToB64(int16) {
    ---------------------------------------------------------------------- */
 function playChunk(int16) {
   if (!outCtx) return;
+  /* Paused means paused.
+
+     flushPlayback() stops what is ALREADY scheduled, and that was all pause
+     did — so the socket kept streaming, every arriving chunk was scheduled
+     afresh, and Ada carried on talking through a button that claimed to have
+     stopped her. Dropping the audio here is what actually makes it silent.
+
+     The dropped speech is not recovered on resume: she goes quiet, and picks
+     up when the learner next says something. That is what a pause should do —
+     replaying half a sentence into a room someone just came back to is worse
+     than silence. */
+  if (sessionPaused) return;
   const buf = outCtx.createBuffer(1, int16.length, RATE);
   const ch = buf.getChannelData(0);
   for (let i = 0; i < int16.length; i++) ch[i] = int16[i] / 32768;
@@ -3485,7 +3497,7 @@ function deckPause(on) {
 
 function setPaused(on) {
   sessionPaused = on;
-  if (on) flushPlayback();          // the tutor stops mid-word
+  if (on) flushPlayback();          // drop what is queued; playChunk drops the rest
   setMuted(on);                     // and the room stops being streamed
   deckPause(on);                    // and the module holds where it is
   const btn = document.getElementById('pause');
