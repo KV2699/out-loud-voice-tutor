@@ -2627,7 +2627,7 @@ body:has(#scene-1.is-active) .chev{display:none !important;}
 .cert__awarded,
 .cert__for { font-size: 2.2cqw; color: var(--text-faint); margin: 0; }
 .cert__name {
-  font-size: 6.4cqw; font-weight: 700; line-height: 1.05;
+  font-size: 4.5cqw; font-weight: 700; line-height: 1.08;
   letter-spacing: -.02em;
   margin: .9cqw 0 1.1cqw;
   text-wrap: balance;
@@ -4109,6 +4109,49 @@ function setPaused(p) {
    preview pane, so mid-animation states cannot be captured by waiting.
    These hooks make every state reachable deterministically instead.
    ========================================================================= */
+/* ------------------------------------------------------------------------
+   DEMO STATE — ?demo=1 only
+
+   Fills the course in as though it had been taken and passed, so the results
+   and certificate screens can be filmed without playing fifteen minutes of
+   it first. Behind a flag on purpose: a judge opening the plain URL must
+   never find a course that claims to be finished when it is not.
+
+   Delete this block and the name default below to remove it entirely.
+   ---------------------------------------------------------------------- */
+function demoFlag() {
+  try {
+    const here = new URLSearchParams(location.search).get('demo') === '1';
+    let up = false;
+    try { up = new URLSearchParams(parent.location.search).get('demo') === '1'; } catch (e) {}
+    return here || up;
+  } catch (e) { return false; }
+}
+
+(function () {
+  try {
+    /* Read the flag from this frame OR its parent — the tutor page owns the
+       URL and the deck is framed inside it on the same origin. Rewriting the
+       iframe src to carry it caused a second 700KB load and an opacity hack
+       that outlived its own cleanup. */
+    if (!demoFlag()) return;
+    /* AFTER load, not at parse time. initActivities() runs buildSort() and
+       buildQuiz() during boot and both zero their own scores, so anything set
+       earlier is wiped — which is why only Part 2, the one nothing rebuilds,
+       survived the first attempt. */
+    addEventListener('load', function () {
+      Deck.sortSubmitted = true; Deck.sortScore  = SITUATIONS.length;
+      Deck.rulesDone     = true; Deck.rulesScore = RULES.length;
+      Deck.quizDone      = true; Deck.quizScore  = QUESTIONS.length;
+      Deck.branched = true;
+      Deck.done = { 1: true, 2: true, 3: true };
+      try { updateChrome(); } catch (e) {}
+      try { if (typeof certRender === 'function') certRender(); } catch (e) {}
+      try { if (typeof renderResults === 'function') renderResults(); } catch (e) {}
+    });
+  } catch (e) {}
+})();
+
 window.__deck = {
   goto: n => { mount(Math.max(1, Math.min(TOTAL, n))); return Deck.i; },
   play: n => playScene(n || Deck.i),
@@ -5208,6 +5251,17 @@ function initCertificate() {
   if (!$('#scene-' + SCENE.CERT)) return;
 
   const input = $('#cert-input');
+
+  /* ?demo=1 fills the name in too, so the certificate can be filmed as a
+     finished artefact rather than a placeholder. Remove with the demo block
+     in engine.js. */
+  try {
+    if (typeof demoFlag === 'function' && demoFlag()) {
+      Cert.name = 'Kerrie Vincent';
+      if (input) input.value = Cert.name;
+    }
+  } catch (e) {}
+
   if (input) {
     input.addEventListener('input', () => {
       Cert.name = input.value.trim().slice(0, 60);
