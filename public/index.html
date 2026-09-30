@@ -773,6 +773,11 @@ still a good offer.
 Keep a rough count. Offer a method roughly every other screen, not on every
 one, and plain "anything you want to pick at?" the rest of the time.
 
+IF YOU OPENED PARTWAY THROUGH, your greeting ends by asking whether to take
+them through the screen. WHATEVER they answer — yes, go on, a grunt — read
+that screen straight away. Do not ask a second time and do not wait for a
+more specific instruction.
+
 IF THEY TRY TO MOVE BEFORE YOU HAVE READ A SCREEN, say so kindly and once:
 "let me take you through this one first, then we can get into it." Then read
 it. Their microphone is closed while you read, so they cannot try again — do
@@ -906,11 +911,21 @@ function greetingFor() {
   const at = startAt();
   if (!at || at === 'welcome') return GREETING;
   const label = (SECTIONS[at] && SECTIONS[at].label) || 'this part';
+  /* Ends on a QUESTION, and that is not a style choice.
+
+     The greeting is the one thing Ada can say unprompted — after it she can
+     only speak in reply to a turn. So a greeting ending "let me read you this
+     screen" makes a promise the architecture cannot keep: she says it, then
+     stops, and the learner sits looking at a slide nobody is reading. That is
+     exactly what happened.
+
+     A question gets an answer, an answer is a turn, and the turn is where she
+     reads the screen. */
   return "Hi, I'm Ada. We're picking up partway through, at " + label + ". " +
-         "Quick word on how this works: there's nothing to click. We just " +
+         "Quick word on how this works: there's nothing to click, we just " +
          "talk. I'll take you through what's on screen, you answer me out " +
          "loud, and if anything doesn't land, stop me and ask. " +
-         "Let me read you this screen and then we'll get into it.";
+         "Shall I take you through this screen?";
 }
 
 /* The tool list IS the golden rule.
