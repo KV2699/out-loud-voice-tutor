@@ -2947,6 +2947,7 @@ async function connect() {
 
   ws = new WebSocket(`${WS_URL}?token=${encodeURIComponent(token)}`);
 
+  greetingPending = true;      // the first reply of a session is the greeting
   ws.onopen = () => {
     ws.send(JSON.stringify({
       type: 'session.update',
@@ -2998,10 +2999,8 @@ async function connect() {
            read a word of it — unlocking a screen the learner has not been
            taken through. Clear it once the jump has settled, so the first
            read is still owed. */
-        if (landing) {
-          const n = SECTIONS[landing].scene;
-          setTimeout(() => { delete Reveal.heardInFull[n]; renderJourney(); }, 2200);
-        }
+        /* No timed clear here any more — it could not outrun the greeting.
+           greetingPending handles it properly, whenever the greeting lands. */
         onDoorOpen();          // the page is only worth revealing once it talks
         watchJourney();
         startMeter();          // the clock is running from this moment
@@ -3122,7 +3121,11 @@ async function connect() {
           const settle = setInterval(() => {
             if (!Speech.done()) return;
             clearInterval(settle);
-            Reveal.finish(true);
+            /* A greeting is not a reading of the screen. Let it reveal what
+               it reveals, but do not let it discharge the first-read debt. */
+            const wasGreeting = greetingPending;
+            greetingPending = false;
+            Reveal.finish(!wasGreeting);
           }, 200);
           /* A reply that never produced audio must still resolve, or the
              screen locks exactly as it did before. */
@@ -3708,6 +3711,13 @@ let pausedAudio = [];          // chunks held back while paused, in order
 /* Auto-mute is not the learner's mute. Theirs must survive a read; ours must
    not override a choice they made. */
 let autoMuted = false;
+/* The greeting is a reply like any other as far as the socket is concerned,
+   so its reply.done marked whatever screen we had landed on as "heard" — and
+   then advance was legitimately allowed, which is why answering "go on" shot
+   past the screen instead of reading it. A timed clear could not win that
+   race: the greeting finishes around six seconds in, long after any sensible
+   timer. So the greeting is simply not counted. */
+let greetingPending = false;
 
 function setMuted(on) {
   micMuted = on;
