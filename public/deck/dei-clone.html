@@ -2592,9 +2592,7 @@ body:has(#scene-1.is-active) .chev{display:none !important;}
      script never runs. */
   stroke-dashoffset: var(--dash, 0);
 }
-.cert__rule-inner { stroke: rgba(var(--coral-rgb), .38); stroke-width: 1; }
 .cert.is-revealed .cert__rule rect { transition: stroke-dashoffset 1100ms cubic-bezier(.4,0,.2,1); stroke-dashoffset: 0; }
-.cert.is-revealed .cert__rule-inner { transition-delay: 140ms; }
 .cert.is-static .cert__rule rect { stroke-dasharray: none !important; stroke-dashoffset: 0 !important; }
 
 /* ---- the type ---- */
@@ -2682,13 +2680,7 @@ body:has(#scene-1.is-active) .chev{display:none !important;}
    two lines on a certificate reads as a mistake. */
 .cert__foot-v { display: block; font-size: 2.4cqw; font-weight: 600; white-space: nowrap; }
 
-.cert__seal-tick {
-  fill: none; stroke: var(--coral-500);
-  stroke-width: 6; stroke-linecap: round; stroke-linejoin: round;
-  stroke-dashoffset: var(--dash, 0);
-}
-.cert.is-static .cert__seal-tick { stroke-dasharray: none !important; stroke-dashoffset: 0 !important; }
-
+.cert.is-static 
 /* ---- the ladder ----------------------------------------------------------
    Everything inside starts hidden ONLY when script is running the reveal, so
    a certificate with no JS is a readable certificate rather than a blank
@@ -2716,18 +2708,7 @@ body:has(#scene-1.is-active) .chev{display:none !important;}
 .cert.is-revealed .cert__date     { animation-delay: 1900ms; }
 .cert.is-revealed .cert__score    { animation-delay: 1980ms; }
 
-/* The seal is the one place this deck allows overshoot: it is a stamp, and a
-   stamp that eases politely into place does not read as one. */
-.cert.is-revealed .cert__seal {
-  animation: certStamp 520ms cubic-bezier(.34,1.56,.64,1) both 2080ms;
-}
-.cert.is-revealed .cert__seal-tick {
-  transition: stroke-dashoffset 420ms cubic-bezier(.4,0,.2,1) 2500ms;
-  stroke-dashoffset: 0;
-}
-
-@keyframes certIn   { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-@keyframes certStamp{ from { opacity: 0; transform: scale(1.6) rotate(-12deg); } to { opacity: 1; transform: none; } }
+@keyframes certIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 
 /* ---- the side panel ---- */
 .s-cert__side { display: grid; gap: calc(1.4*var(--su)); align-content: center; }
@@ -2753,9 +2734,8 @@ body:has(#scene-1.is-active) .chev{display:none !important;}
 .s-cert__cta .cta { width: 100%; justify-content: center; }
 
 @media (prefers-reduced-motion: reduce) {
-  .cert.is-revealed :is(.cert__eyebrow,.cert__awarded,.cert__name,.cert__for,.cert__course,.cert__mod,.cert__foot > *,.cert__seal) { animation: none; opacity: 1; transform: none; }
-  .cert.is-revealed .cert__rule rect,
-  .cert.is-revealed .cert__seal-tick { transition: none; stroke-dasharray: none; stroke-dashoffset: 0; }
+  .cert.is-revealed :is(.cert__eyebrow,.cert__awarded,.cert__name,.cert__for,.cert__course,.cert__mod,.cert__foot > *) { animation: none; opacity: 1; transform: none; }
+  .cert.is-revealed .cert__rule rect { transition: none; stroke-dasharray: none; stroke-dashoffset: 0; }
   .cert.is-revealed::after { transition: none; }
 }
 
@@ -2785,11 +2765,67 @@ body:has(#scene-1.is-active) .chev{display:none !important;}
   }
   .cert::after { display: none !important; }
   /* A print must never catch the reveal mid-flight. */
-  .cert :is(.cert__eyebrow,.cert__awarded,.cert__name,.cert__for,.cert__course,.cert__mod,.cert__foot > *,.cert__seal) {
+  .cert :is(.cert__eyebrow,.cert__awarded,.cert__name,.cert__for,.cert__course,.cert__mod,.cert__foot > *) {
     opacity: 1 !important; animation: none !important; transform: none !important;
   }
-  .cert__rule rect, .cert__seal-tick { stroke-dasharray: none !important; stroke-dashoffset: 0 !important; }
+  .cert__rule rect { stroke-dasharray: none !important; stroke-dashoffset: 0 !important; }
 }
+
+/* =========================================================================
+   ORPHAN CONTROL
+   A single word stranded on the last line reads as a mistake rather than a
+   line break, and it was showing up on the cover, the route cards, the
+   triad and the knowledge-check brief.
+
+   Two different tools, because they solve two different problems:
+     balance — evens every line. Right for SHORT blocks (headings, card
+               copy, ledes) where the whole block is the shape you see.
+               Capped by the spec at ~6 lines, so it is wrong for body copy.
+     pretty  — leaves the block alone and only prevents the last line from
+               being a single short word. Right for long paragraphs.
+
+   Browsers without support ignore both and wrap exactly as they did before,
+   so this cannot regress anything.
+   ========================================================================= */
+.t-h1,
+.scene__head .t-h1,
+.scene__sub,
+.s-welcome__lede,
+.shard__label,
+.triad__v,
+.howto p,
+.s-brief__lede,
+.cert__course,
+.cert__name,
+.opt,
+h1, h2, h3 {
+  text-wrap: balance;
+}
+
+/* Long-form copy: fix the last line only, never re-rag the whole block. */
+.t-body,
+.glass-card p,
+.s-define__card p,
+.cert__note,
+p, li {
+  text-wrap: pretty;
+}
+
+/* `balance` must win over the generic `pretty` above for the short blocks
+   listed first — same specificity, later wins, so the order matters and
+   this re-states the short list after it. */
+.t-h1, .scene__sub, .s-welcome__lede, .shard__label,
+.triad__v, .howto p, .s-brief__lede { text-wrap: balance; }
+
+/* =========================================================================
+   CERTIFICATE: chrome clearance
+   The two scene chevrons are centred on the stage edges, which on this
+   scene put the back arrow on top of the certificate's own border and the
+   forward arrow on top of "Play it again". Scene 1 already hides them for
+   the same reason — the scene carries its own calls to action, and the dock
+   still offers the route home.
+   ========================================================================= */
+body:has(#scene-15.is-active) .chev { display: none !important; }
 
 </style>
 </head>
@@ -3356,14 +3392,14 @@ body:has(#scene-1.is-active) .chev{display:none !important;}
       <div class="cert" id="cert" role="img" aria-labelledby="cert-alt">
         <p class="cert__alt" id="cert-alt" hidden></p>
 
-        <!-- Two rules that draw themselves. preserveAspectRatio is none so the
-             border tracks the box rather than keeping the viewBox's shape. -->
-        <!-- The box carries aspect-ratio 1000/620, so the viewBox scales
-             uniformly and an equal inset in viewBox units IS an equal inset on
-             screen. Measured: 10px on every side at stage size. -->
+        <!-- ONE rule that draws itself. There were two concentric frames; a
+             double border is the fussiest thing a certificate can do and it
+             was the first thing to read as clutter. preserveAspectRatio is
+             none so the border tracks the box rather than keeping the
+             viewBox's shape. The box carries aspect-ratio 1000/620, so an
+             equal inset in viewBox units IS an equal inset on screen. -->
         <svg class="cert__rule" viewBox="0 0 1000 620" preserveAspectRatio="none" aria-hidden="true">
-          <rect class="cert__rule-outer" x="22" y="22" width="956" height="576" rx="5"/>
-          <rect class="cert__rule-inner" x="40" y="40" width="920" height="540" rx="3"/>
+          <rect class="cert__rule-outer" x="26" y="26" width="948" height="568" rx="4"/>
         </svg>
 
         <div class="cert__inner">
@@ -5213,7 +5249,7 @@ function certReduced() {
    the border would then never draw. */
 function certMeasure() {
   if (Cert.measured) return;
-  const strokes = $$('.cert__rule rect, .cert__seal-tick');
+  const strokes = $$('.cert__rule rect');
   if (!strokes.length || !strokes[0].getTotalLength) return;
   let any = false;
   strokes.forEach(el => {
