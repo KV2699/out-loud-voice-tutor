@@ -2827,6 +2827,12 @@ p, li {
    ========================================================================= */
 body:has(#scene-15.is-active) .chev { display: none !important; }
 
+/* The topbar hairline is absolutely positioned across the full stage at
+   z-index 69, so on every other scene it sits in empty space but here it
+   draws straight over the certificate — a stray rule cutting across a
+   printed sheet. The breadcrumb above it still reads fine without it. */
+body:has(#scene-15.is-active) .topbar__line { display: none !important; }
+
 </style>
 </head>
 <body>
